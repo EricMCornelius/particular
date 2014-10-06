@@ -4,8 +4,6 @@ THREE.BlurShader = {
     "tDiffuse": { type: "t", value: null },
     "width":    { type: "f", value: 1.0 / 512.0 },
     "height":   { type: "f", value: 1.0 / 512.0 }
-//    "mixRatio":  { type: "f", value: 0.5 },
-//    "opacity":   { type: "f", value: 1.0 }
 
   },
 
@@ -56,7 +54,7 @@ THREE.FadeShader = {
   uniforms: {
 
     "tDiffuse": { type: "t", value: null },
-    "opacity": { type: "f", value: 0.9 }
+    "opacity": { type: "f", value: 1.0 }
 
   },
 
@@ -67,7 +65,7 @@ THREE.FadeShader = {
     "void main() {",
 
       "vUv = uv;",
-      "gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+      "gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
 
     "}"
 
@@ -78,10 +76,13 @@ THREE.FadeShader = {
 
     "uniform sampler2D tDiffuse;",
     "varying vec2 vUv;",
+    "uniform float opacity;",
 
     "void main() {",
 
-      "gl_FragColor = texture2D(tDiffuse, vUv) * 0.9;",
+      "vec4 color = opacity * texture2D(tDiffuse, vUv) - 0.01;",
+      "color.a = 1.0;",
+      "gl_FragColor = color;",
 
     "}"
 
