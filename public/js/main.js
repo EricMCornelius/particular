@@ -189,13 +189,22 @@ function play(notes) {
     });
   }
   else {
+    var lfo = source(5, 'sine');
+    var lfoGain = context.createGain();
+    lfoGain.gain.value = 3;
+    lfo.connect(lfoGain);
+
     var s1 = source(notes, 'sine');
     var s2 = source(notes, 'sine');
     var s3 = source(notes, 'sine');
     s1.detune.value = 2;
     s2.detune.value = -2;
     s3.detune.value = 0;
-    return [s1, s2, s3];
+    //lfoGain.connect(s1.frequency);
+    lfoGain.connect(s2.frequency);
+    //lfoGain.connect(s3.frequency);
+
+    return [lfo, s1, s2, s3];
   }
 }
 
@@ -233,10 +242,10 @@ function aug(key) {
   return chord([0, 4, 8, 12], key);
 }
 
-var bpm = 240;
+var bpm = 120;
 var spb = 60 / bpm;
 
-var A = pitch(110, 4);
+var A = pitch(220, 4);
 
 var notes = {
   Ab: pitch(A, -1),
@@ -307,8 +316,8 @@ var chords = [
   notes.C
 ].map(function(note) { return play(note); });
 
-// http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-wa
-function impulseResponse(duration, decay, reverse) {
+// http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-way
+function impulseResponse( duration, decay, reverse ) {
   var sampleRate = context.sampleRate;
   var length = sampleRate * duration;
   var impulse = context.createBuffer(2, length, sampleRate);
@@ -318,24 +327,10 @@ function impulseResponse(duration, decay, reverse) {
   if (!decay)
     decay = 2.0;
 
-  for (var i = 0; i < length; i++) {
+  for (var i = 0; i < length; i++){
     var n = reverse ? length - i : i;
-    impulseL[i] = Math.random() * Math.pow(1.0 - n / length, decay);
-    impulseR[i] = Math.random() * Math.pow(1.0 - n / length, decay);
-  }
-  return impulse;
-}
-
-function vibratoResponse(period, amplitude) {
-  var sampleRate = context.sampleRate;
-  var length = sampleRate;
-  var impulse = context.createBuffer(2, length, sampleRate);
-  var impulseL = impulse.getChannelData(0);
-  var impulseR = impulse.getChannelData(1);
-
-  for (var i = 0; i < length; i++) {
-    impulseL[i] = 1.0 + 0.1 * Math.sin(i / length);
-    impulseR[i] = 1.0 + 0.1 * Math.sin(i / length);
+    impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
+    impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
   }
   return impulse;
 }
@@ -343,43 +338,19 @@ function vibratoResponse(period, amplitude) {
 function run() {
   var filter = context.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = 220;
-
-  var vibrato = context.createConvolver();
-  vibrato.buffer = vibratoResponse();
-  //filter.connect(vibrato);
 
   var convolve = context.createConvolver();
   convolve.buffer = impulseResponse(1.0, 4, false);
   filter.connect(convolve);
-  //vibrato.connect(convolve);
 
   chords.forEach(function(chord, idx) {
     chord.map(function(c, idx2) {
-      var gain = context.createGain();
       var start = context.currentTime + idx * spb;
       var stop = context.currentTime + spb * idx + spb;
 
-      gain.gain.value = 0.01;
-      gain.gain.setValueAtTime(0.01, start);
-      gain.gain.exponentialRampToValueAtTime(1.0, start + (stop - start) / 4);
-      gain.gain.exponentialRampToValueAtTime(0.1, stop - (stop - start) / 4);
-      c.connect(gain);
-      gain.connect(filter);
-
+      c.connect(filter);
       c.start(start);
       c.stop(stop);
-
-      //var val = c.frequency.value;
-      //c.frequency.setValueAtTime(val, start);
-
-      /*
-      var pitch = [0.98, 1.02];
-      for (var i = 0; i < 20; ++i) {
-        c.frequency.exponentialRampToValueAtTime(pitch[i % 2] * val, start + (stop - start) / i);
-        c.frequency.setValueAtTime(pitch[i % 2] * val, start + (stop - start) / i);
-      }
-      */
     });
   });
 
@@ -387,24 +358,33 @@ function run() {
   delay.delayTime.value = spb / 2;
 
   var feedback = context.createGain();
-  feedback.gain.value = 0.5;
+  feedback.gain.value = 0.25;
 
   var wetlevel = context.createGain();
-  wetlevel.gain.value = 0.5;
+  wetlevel.gain.value = 0.25;
 
   delay.connect(feedback);
   feedback.connect(delay);
 
   delay.connect(wetlevel);
 
+  var lfo = context.createOscillator();
+  lfo.frequency.value = 10;
+
+  var lfoGain = context.createGain();
+  lfoGain.gain.value = 0.05;
+
+  lfo.connect(lfoGain);
+
   var gain = context.createGain();
   gain.gain.value = 0.5;
-  //gain.gain.exponentialRampToValueAtTime(1.0, context.currentTime + chords.length * spb);
+
+  lfoGain.connect(gain.gain);
+  lfo.start();
 
   var compressor = context.createDynamicsCompressor();
 
-  //convolve.connect(gain);
-  filter.connect(gain);
+  convolve.connect(gain);
   gain.connect(delay);
 
   gain.connect(compressor);
