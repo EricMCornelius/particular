@@ -202,9 +202,9 @@ function play(note) {
     s1.detune.value = 2;
     s2.detune.value = -2;
     s3.detune.value = 0;
-    lfoGain.connect(s1.frequency);
+    //lfoGain.connect(s1.frequency);
     lfoGain.connect(s2.frequency);
-    lfoGain.connect(s3.frequency);
+    //lfoGain.connect(s3.frequency);
 
     return [lfo, s1, s2, s3];
   }
@@ -244,10 +244,10 @@ function aug(key) {
   return chord([0, 4, 8, 12], key);
 }
 
-var bpm = 120 * 4;
+var bpm = 120 * 2;
 var spb = 60 / bpm;
 
-var A = pitch(220, 4);
+var A = 220;
 
 var notes = {
   Ab: pitch(A, -1),
@@ -293,14 +293,24 @@ function duration(note, beats) {
   return note;
 }
 
+function minor_ascending(key) {
+  return [0, null, 2, 3, 5, 7, 9, 11]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function minor_descending(key) {
+  return [0, null, -2, -4, -5, -7, -9, -10]
+    .map(function(step) { return pitch(key, step); });
+}
+
 function createScore() {
   for (var key in notes) {
     window[key] = notes[key];
   }
 
-  var rest = null;
-  var scale_up = [C, rest, D, Eb, F, G, octave(A, 1), octave(B, 1)];
-  var scale_down = [C, rest, Bb, Ab, octave(G, -1), octave(F, -1), octave(Eb, -1), octave(D, -1)];
+  var rest = 0;
+  var scale_up = minor_ascending(C);
+  var scale_down = minor_descending(C);
 
   var score = [
     scale_up,
@@ -338,18 +348,81 @@ function impulseResponse( duration, decay, reverse ) {
   return impulse;
 }
 
+var bufferSize = 1024;
+
+// http://noisehack.com/generate-noise-web-audio-api/
+function createWhiteNoise() {
+  var noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
+  var output = noiseBuffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) {
+    output[i] = Math.random() * 2 - 1;
+  }
+
+  var whiteNoise = context.createBufferSource();
+  whiteNoise.buffer = noiseBuffer;
+  whiteNoise.loop = true;
+  whiteNoise.start();
+  return whiteNoise;
+}
+
+function createPinkNoise() {
+  var b0, b1, b2, b3, b4, b5, b6;
+  b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0.0;
+  var node = context.createScriptProcessor(bufferSize, 1, 1);
+  node.onaudioprocess = function(e) {
+    var output = e.outputBuffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      var white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+      output[i] *= 0.11; // (roughly) compensate for gain
+      b6 = white * 0.115926;
+    }
+  }
+  console.log(node);
+  return node;
+}
+
+function createBrownNoise() {
+  var lastOut = 0.0;
+  var node = context.createScriptProcessor(bufferSize, 1, 1);
+  node.onaudioprocess = function(e) {
+    var output = e.outputBuffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      var white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = output[i];
+      output[i] *= 3.5; // (roughly) compensate for gain
+    }
+  };
+  console.log(node);
+  return node;
+};
+
 function run() {
   var filter = context.createBiquadFilter();
   filter.type = 'lowpass';
+  filter.Q.value = 0.1;
+
+  /*
+  var noise = createBrownNoise();
+  var noiseGain = context.createGain();
+  noiseGain.gain.value = 0.1;
+  noise.connect(noiseGain);
+  noiseGain.connect(context.destination);
+  */
 
   var convolve = context.createConvolver();
-  convolve.buffer = impulseResponse(0.5, 4, false);
+  convolve.buffer = impulseResponse(0.75, 2, false);
   filter.connect(convolve);
 
-  var timing = 0;
   score.forEach(function(chord, idx) {
-    console.log(chord);
-    chord.map(function(c, idx2) {
+    chord.map(function(c) {
       var start = context.currentTime + idx * spb;
       var stop = context.currentTime + spb * idx + spb;
 
@@ -360,7 +433,7 @@ function run() {
   });
 
   var delay = context.createDelay();
-  delay.delayTime.value = spb / 2;
+  delay.delayTime.value = spb / 3;
 
   var feedback = context.createGain();
   feedback.gain.value = 0.25;
