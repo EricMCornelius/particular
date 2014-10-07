@@ -167,8 +167,12 @@ init();
 
 var context = new AudioContext();
 
-function pitch(base, half_steps) {
-  return base * Math.pow(2, half_steps / 12);
+function pitch(key, interval) {
+  return key * Math.pow(2, interval / 12);
+}
+
+function octave(key, val) {
+  return key * Math.pow(2, val);
 }
 
 function source(freq, type) {
@@ -178,20 +182,247 @@ function source(freq, type) {
   return oscillator;
 }
 
-function major(freq) {
-  return [
-    source(pitch(freq, 0)),
-    source(pitch(freq, 4)),
-    source(pitch(freq, 7)),
-    source(pitch(freq, 12))
-  ];
+function play(notes) {
+  if (Array.isArray(notes)) {
+    return notes.map(function(note) {
+      return source(note);
+    });
+  }
+  else {
+    var s1 = source(notes, 'sine');
+    var s2 = source(notes, 'sine');
+    var s3 = source(notes, 'sine');
+    s1.detune.value = 2;
+    s2.detune.value = -2;
+    s3.detune.value = 0;
+    return [s1, s2, s3];
+  }
 }
 
-function audio() {
-  var sources = major(440);
+function chord(intervals, key) {
+  key = key || notes.A;
+  var results = [];
+  intervals.forEach(function(interval) {
+    //results.push(source(pitch(key, interval), 'sawtooth'));
+    var s1 = source(pitch(key, interval), 'sawtooth');
+    var s2 = source(pitch(key, interval), 'sawtooth');
+    var s3 = source(pitch(key, interval), 'square');
+    s1.detune.value = 3;
+    s2.detune.value = -3;
+    s3.detune.value = 0;
+    results.push(s1);
+    results.push(s2);
+    results.push(s3);
+  });
+  return results;
+}
+
+function major(key) {
+  return chord([0, 4, 7, 12], key);
+}
+
+function minor(key) {
+  return chord([0, 3, 7, 12], key);
+}
+
+function dim(key) {
+  return chord([0, 3, 6, 9, 12], key);
+}
+
+function aug(key) {
+  return chord([0, 4, 8, 12], key);
+}
+
+var bpm = 240;
+var spb = 60 / bpm;
+
+var A = pitch(110, 4);
+
+var notes = {
+  Ab: pitch(A, -1),
+  A: A,
+  As: pitch(A, 1),
+  Bb: pitch(A, 1),
+  B: pitch(A, 2),
+  C: pitch(A, 3),
+  Cs: pitch(A, 4),
+  Db: pitch(A, 4),
+  D: pitch(A, 5),
+  Ds: pitch(A, 6),
+  Eb: pitch(A, 6),
+  E: pitch(A, 7),
+  F: pitch(A, 8),
+  Fs: pitch(A, 9),
+  Gb: pitch(A, 9),
+  G: pitch(A, 10),
+  Gs: pitch(A, 11)
+};
+
+var chords = [
+  major(notes.C),
+  major(notes.G),
+  minor(notes.A),
+  major(notes.F)
+];
+
+var chords = [
+  notes.C,
+  notes.E,
+  notes.G,
+  octave(notes.C, 1),
+  notes.G,
+  notes.E,
+  notes.C
+].map(function(note) { return play(note); });
+
+var chords = [
+  notes.C,
+  notes.D,
+  notes.Eb,
+  notes.F,
+  notes.G,
+  octave(notes.A, 1),
+  octave(notes.B, 1),
+  octave(notes.C, 1),
+  octave(notes.D, 1),
+  octave(notes.Eb, 1),
+  octave(notes.F, 1),
+  octave(notes.G, 1),
+  octave(notes.A, 2),
+  octave(notes.B, 2),
+  octave(notes.C, 2),
+  octave(notes.Bb, 2),
+  octave(notes.Ab, 2),
+  octave(notes.G, 1),
+  octave(notes.F, 1),
+  octave(notes.Eb, 1),
+  octave(notes.D, 1),
+  octave(notes.C, 1),
+  octave(notes.Bb, 1),
+  octave(notes.Ab, 1),
+  notes.G,
+  notes.F,
+  notes.Eb,
+  notes.D,
+  notes.C
+].map(function(note) { return play(note); });
+
+// http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-wa
+function impulseResponse(duration, decay, reverse) {
+  var sampleRate = context.sampleRate;
+  var length = sampleRate * duration;
+  var impulse = context.createBuffer(2, length, sampleRate);
+  var impulseL = impulse.getChannelData(0);
+  var impulseR = impulse.getChannelData(1);
+
+  if (!decay)
+    decay = 2.0;
+
+  for (var i = 0; i < length; i++) {
+    var n = reverse ? length - i : i;
+    impulseL[i] = Math.random() * Math.pow(1.0 - n / length, decay);
+    impulseR[i] = Math.random() * Math.pow(1.0 - n / length, decay);
+  }
+  return impulse;
+}
+
+function vibratoResponse(period, amplitude) {
+  var sampleRate = context.sampleRate;
+  var length = sampleRate;
+  var impulse = context.createBuffer(2, length, sampleRate);
+  var impulseL = impulse.getChannelData(0);
+  var impulseR = impulse.getChannelData(1);
+
+  for (var i = 0; i < length; i++) {
+    impulseL[i] = 1.0 + 0.1 * Math.sin(i / length);
+    impulseR[i] = 1.0 + 0.1 * Math.sin(i / length);
+  }
+  return impulse;
+}
+
+function run() {
+  var filter = context.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 220;
+
+  var vibrato = context.createConvolver();
+  vibrato.buffer = vibratoResponse();
+  //filter.connect(vibrato);
+
+  var convolve = context.createConvolver();
+  convolve.buffer = impulseResponse(1.0, 4, false);
+  filter.connect(convolve);
+  //vibrato.connect(convolve);
+
+  chords.forEach(function(chord, idx) {
+    chord.map(function(c, idx2) {
+      var gain = context.createGain();
+      var start = context.currentTime + idx * spb;
+      var stop = context.currentTime + spb * idx + spb;
+
+      gain.gain.value = 0.01;
+      gain.gain.setValueAtTime(0.01, start);
+      gain.gain.exponentialRampToValueAtTime(1.0, start + (stop - start) / 4);
+      gain.gain.exponentialRampToValueAtTime(0.1, stop - (stop - start) / 4);
+      c.connect(gain);
+      gain.connect(filter);
+
+      c.start(start);
+      c.stop(stop);
+
+      //var val = c.frequency.value;
+      //c.frequency.setValueAtTime(val, start);
+
+      /*
+      var pitch = [0.98, 1.02];
+      for (var i = 0; i < 20; ++i) {
+        c.frequency.exponentialRampToValueAtTime(pitch[i % 2] * val, start + (stop - start) / i);
+        c.frequency.setValueAtTime(pitch[i % 2] * val, start + (stop - start) / i);
+      }
+      */
+    });
+  });
+
+  var delay = context.createDelay();
+  delay.delayTime.value = spb / 2;
+
+  var feedback = context.createGain();
+  feedback.gain.value = 0.5;
+
+  var wetlevel = context.createGain();
+  wetlevel.gain.value = 0.5;
+
+  delay.connect(feedback);
+  feedback.connect(delay);
+
+  delay.connect(wetlevel);
 
   var gain = context.createGain();
-  gain.gain.value = 0.01;
+  gain.gain.value = 0.5;
+  //gain.gain.exponentialRampToValueAtTime(1.0, context.currentTime + chords.length * spb);
+
+  var compressor = context.createDynamicsCompressor();
+
+  //convolve.connect(gain);
+  filter.connect(gain);
+  gain.connect(delay);
+
+  gain.connect(compressor);
+  wetlevel.connect(compressor);
+
+  compressor.connect(context.destination);
+};
+
+run();
+
+function audio() {
+  //var sources = aug(440);
+
+  //var sources = play([notes.C, notes.E, notes.G, octave(notes.E, -1)]);
+
+  /*
+  var gain = context.createGain();
+  gain.gain.value = 0.02;
 
   sources.map(function(source) {
     source.connect(gain);
@@ -199,6 +430,7 @@ function audio() {
   });
 
   gain.connect(context.destination);
+  */
 }
 
 audio();
