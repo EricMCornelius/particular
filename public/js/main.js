@@ -172,6 +172,10 @@ function pitch(key, interval) {
 }
 
 function octave(key, val) {
+  if (Array.isArray(key)) {
+    return key.map(function(k) { return octave(k, val); })
+              .reduce(function(accum, next) { accum.push(next); return accum; }, []);
+  }
   return key * Math.pow(2, val);
 }
 
@@ -182,11 +186,9 @@ function source(freq, type) {
   return oscillator;
 }
 
-function play(notes) {
-  if (Array.isArray(notes)) {
-    return notes.map(function(note) {
-      return source(note);
-    });
+function play(note) {
+  if (Array.isArray(note)) {
+    return note.map(play).reduce(function(accum, next) { accum.push(next); return accum; }, []);
   }
   else {
     var lfo = source(5, 'sine');
@@ -194,15 +196,15 @@ function play(notes) {
     lfoGain.gain.value = 3;
     lfo.connect(lfoGain);
 
-    var s1 = source(notes, 'sine');
-    var s2 = source(notes, 'sine');
-    var s3 = source(notes, 'sine');
+    var s1 = source(note, 'sine');
+    var s2 = source(note, 'sine');
+    var s3 = source(note, 'sine');
     s1.detune.value = 2;
     s2.detune.value = -2;
     s3.detune.value = 0;
-    //lfoGain.connect(s1.frequency);
+    lfoGain.connect(s1.frequency);
     lfoGain.connect(s2.frequency);
-    //lfoGain.connect(s3.frequency);
+    lfoGain.connect(s3.frequency);
 
     return [lfo, s1, s2, s3];
   }
@@ -242,7 +244,7 @@ function aug(key) {
   return chord([0, 4, 8, 12], key);
 }
 
-var bpm = 120;
+var bpm = 120 * 4;
 var spb = 60 / bpm;
 
 var A = pitch(220, 4);
@@ -267,6 +269,7 @@ var notes = {
   Gs: pitch(A, 11)
 };
 
+/*
 var chords = [
   major(notes.C),
   major(notes.G),
@@ -283,38 +286,38 @@ var chords = [
   notes.E,
   notes.C
 ].map(function(note) { return play(note); });
+*/
 
-var chords = [
-  notes.C,
-  notes.D,
-  notes.Eb,
-  notes.F,
-  notes.G,
-  octave(notes.A, 1),
-  octave(notes.B, 1),
-  octave(notes.C, 1),
-  octave(notes.D, 1),
-  octave(notes.Eb, 1),
-  octave(notes.F, 1),
-  octave(notes.G, 1),
-  octave(notes.A, 2),
-  octave(notes.B, 2),
-  octave(notes.C, 2),
-  octave(notes.Bb, 2),
-  octave(notes.Ab, 2),
-  octave(notes.G, 1),
-  octave(notes.F, 1),
-  octave(notes.Eb, 1),
-  octave(notes.D, 1),
-  octave(notes.C, 1),
-  octave(notes.Bb, 1),
-  octave(notes.Ab, 1),
-  notes.G,
-  notes.F,
-  notes.Eb,
-  notes.D,
-  notes.C
-].map(function(note) { return play(note); });
+function duration(note, beats) {
+  note.beats = beats || 1;
+  return note;
+}
+
+function createScore() {
+  for (var key in notes) {
+    window[key] = notes[key];
+  }
+
+  var rest = null;
+  var scale_up = [C, rest, D, Eb, F, G, octave(A, 1), octave(B, 1)];
+  var scale_down = [C, rest, Bb, Ab, octave(G, -1), octave(F, -1), octave(Eb, -1), octave(D, -1)];
+
+  var score = [
+    scale_up,
+    octave(scale_up, 1),
+    octave(scale_up, 2),
+    octave(scale_down, 3),
+    octave(scale_down, 2),
+    octave(scale_down, 1),
+    C
+  ].reduce(function(accum, next) {
+    return accum.concat(next);
+  }, []);
+  return score;
+};
+score = play(createScore());
+
+score[0] = score[0].map(function(note) { return duration(note, 2); });
 
 // http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-way
 function impulseResponse( duration, decay, reverse ) {
@@ -340,10 +343,12 @@ function run() {
   filter.type = 'lowpass';
 
   var convolve = context.createConvolver();
-  convolve.buffer = impulseResponse(1.0, 4, false);
+  convolve.buffer = impulseResponse(0.5, 4, false);
   filter.connect(convolve);
 
-  chords.forEach(function(chord, idx) {
+  var timing = 0;
+  score.forEach(function(chord, idx) {
+    console.log(chord);
     chord.map(function(c, idx2) {
       var start = context.currentTime + idx * spb;
       var stop = context.currentTime + spb * idx + spb;
