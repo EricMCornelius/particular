@@ -4,7 +4,6 @@ window.oncontextmenu = onRightClick;
 
 function onRightClick(evt) {
   evt.preventDefault();
-  console.log(evt);
   sink(evt.x, evt.y);
 }
 
@@ -196,9 +195,9 @@ function play(note) {
     lfoGain.gain.value = 3;
     lfo.connect(lfoGain);
 
-    var s1 = source(note, 'sine');
+    var s1 = source(note, 'triangle');
     var s2 = source(note, 'sine');
-    var s3 = source(note, 'sine');
+    var s3 = source(note, 'triangle');
     s1.detune.value = 2;
     s2.detune.value = -2;
     s3.detune.value = 0;
@@ -215,9 +214,9 @@ function chord(intervals, key) {
   var results = [];
   intervals.forEach(function(interval) {
     //results.push(source(pitch(key, interval), 'sawtooth'));
-    var s1 = source(pitch(key, interval), 'sawtooth');
-    var s2 = source(pitch(key, interval), 'sawtooth');
-    var s3 = source(pitch(key, interval), 'square');
+    var s1 = source(pitch(key, interval), 'sine');
+    var s2 = source(pitch(key, interval), 'sine');
+    var s3 = source(pitch(key, interval), 'sine');
     s1.detune.value = 3;
     s2.detune.value = -3;
     s3.detune.value = 0;
@@ -327,8 +326,6 @@ function createScore() {
 };
 score = play(createScore());
 
-score[0] = score[0].map(function(note) { return duration(note, 2); });
-
 // http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-way
 function impulseResponse( duration, decay, reverse ) {
   var sampleRate = context.sampleRate;
@@ -404,10 +401,85 @@ function createBrownNoise() {
   return node;
 };
 
-function run() {
+
+function loadSound(url, cb) {
+  var request = new XMLHttpRequest();
+  request.open('GET', url, true);
+  request.responseType = 'arraybuffer';
+
+  // Decode asynchronously
+  request.onload = function() {
+    context.decodeAudioData(request.response, function(buffer) {
+      cb(null, buffer);
+    }, cb);
+  }
+  request.send();
+}
+
+function playSound2(err, buffer) {
+  var source = context.createBufferSource();
+  source.buffer = buffer;
+  //source.loop = true;
+  source.playbackRate.value = 1;
+  source.start(0);
+
   var filter = context.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.Q.value = 0.1;
+  filter.type = 'allpass';
+
+  var gain = context.createGain();
+  gain.gain.value = 5.0;
+
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(context.destination);
+}
+
+function playSound(buffer) {
+  var source = context.createBufferSource();
+  source.buffer = buffer;
+  return source;
+}
+
+function get_resources(prefix) {
+  var names = ['a', 'as', 'h', 'c', 'cs', 'd', 'ds', 'e', 'f', 'fs', 'g', 'gs'];
+  var results = [];
+  for (var i = 1; i <= 5; ++i) {
+    results = results.concat(names.map(function(note) { return {note: note + i, uri: prefix + note + i + '.wav'}; } ));
+  }
+  return results;
+}
+
+function load_resources(cb) {
+  var resources = get_resources('/samples/');
+
+  var marimba = {};
+  resources.map(function(resource) {
+    function onLoad(err, buffer) {
+      marimba[resource.note] = buffer;
+      if (Object.keys(marimba).length === resources.length)
+        cb(null, marimba);
+    }
+    loadSound(resource.uri, onLoad);
+  });
+};
+
+load_resources(function(err, results) {
+  perform([
+    [playSound(results.c3)],
+    [playSound(results.d3)],
+    [playSound(results.e3)],
+    [playSound(results.f3)],
+    [playSound(results.g3)],
+    [playSound(results.a3)],
+    [playSound(results.h3)],
+    [playSound(results.c4)]
+  ]);
+});
+
+function perform(score) {
+  var filter = context.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.Q.value = 1;
 
   /*
   var noise = createBrownNoise();
@@ -417,11 +489,15 @@ function run() {
   noiseGain.connect(context.destination);
   */
 
-  var convolve = context.createConvolver();
-  convolve.buffer = impulseResponse(0.75, 2, false);
-  filter.connect(convolve);
+  //var convolve = context.createConvolver();
+  //convolve.buffer = impulseResponse(0.75, 2, false);
+  //filter.connect(convolve);
+  var convolve = filter;
 
   score.forEach(function(chord, idx) {
+    if (!Array.isArray(chord))
+      chord = [chord];
+
     chord.map(function(c) {
       var start = context.currentTime + idx * spb;
       var stop = context.currentTime + spb * idx + spb;
@@ -433,7 +509,7 @@ function run() {
   });
 
   var delay = context.createDelay();
-  delay.delayTime.value = spb / 3;
+  delay.delayTime.value = spb / 2;
 
   var feedback = context.createGain();
   feedback.gain.value = 0.25;
@@ -455,7 +531,7 @@ function run() {
   lfo.connect(lfoGain);
 
   var gain = context.createGain();
-  gain.gain.value = 0.5;
+  gain.gain.value = 10;
 
   lfoGain.connect(gain.gain);
   lfo.start();
@@ -471,7 +547,7 @@ function run() {
   compressor.connect(context.destination);
 };
 
-run();
+//perform(score);
 
 function audio() {
   //var sources = aug(440);
