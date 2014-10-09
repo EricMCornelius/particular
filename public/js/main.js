@@ -185,27 +185,201 @@ function source(freq, type) {
   return oscillator;
 }
 
+function gen_adsr(a, d, s, r) {
+  var bufferSize = 1024;
+  var total = a + d + s + r;
+  var attack = a / total * bufferSize;
+  var decay = d / total * bufferSize;
+  var sustain = s / total * bufferSize;
+  var release = r / total * bufferSize;
+
+  var sustained_at = 0.8;
+
+  var waveArray = new Float32Array(bufferSize);
+  var count = 0;
+
+  for (var i = 0; i < attack; ++i) {
+    waveArray[++count] = i / attack;
+  }
+
+  for (var i = 0; i < decay; ++i) {
+    waveArray[++count] = 1.0 - (1.0 - sustained_at) * (i / decay);
+  }
+
+  for (var i = 0; i < sustain; ++i) {
+    waveArray[++count] = sustained_at;
+  }
+
+  for (var i = 0; i < release; ++i) {
+    waveArray[++count] = sustained_at - sustained_at * (i / release);
+  }
+
+  return waveArray;
+}
+
+var envelopes = { };
+
+function envelope(adsr, duration) {
+  var node = envelopes;
+  var parts = adsr.slice();
+  var buf = null;
+  while (node && parts.length > 0) {
+    node = node[parts.shift()];
+  }
+
+  if (!node) {
+    buf = gen_adsr.apply(this, adsr);
+    parts = adsr.slice();
+    node = envelopes;
+    while (parts.length > 0) {
+      var next = parts.shift();
+      if (!node[next]) {
+        node[next] = {};
+      }
+      if (parts.length > 0) {
+        node = node[next];
+      }
+      else {
+        node[next] = buf;
+      }
+    }
+  }
+  else {
+    buf = node;
+  }
+
+  var env = context.createGain();
+  var start = 0;
+  var stop = 0;
+
+  return {
+    start: function(time) {
+      start = time;
+      env.gain.value = 0.0;
+      var dur = duration || stop - start;
+      env.gain.setValueCurveAtTime(buf, start, dur);
+    },
+    stop: function(time) {
+      stop = time;
+      env.gain.value = 0.0;
+      var dur = duration || stop - start;
+      env.gain.setValueCurveAtTime(buf, start, dur);
+    },
+    connect: function(node) {
+      env.connect(node);
+    },
+    node: env
+  };
+}
+
+function gain(val) {
+  var g = context.createGain();
+  g.gain.value = val;
+  return g;
+}
+
+function create_lfo(freq, amp) {
+  var lfo = source(freq, 'sine');
+  var lfoGain = context.createGain();
+  lfoGain.gain.value = amp;
+  lfo.connect(lfoGain);
+  lfo.start(0);
+  lfoGain.frequency = lfo.frequency;
+  return lfoGain;
+}
+
+function create_sound(note) {
+  var lfo1 = create_lfo(0.8, 0.7);
+  var lfo2 = create_lfo(0.5, 0.5);
+  var lfo3 = create_lfo(0.7, 0.3);
+
+  /*
+  var lowpass = context.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.Q.value = 0.1;
+  lowpass.frequency = note;
+
+  var highpass = context.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.Q.value = 0.1;
+  highpass.frequency = note;
+  */
+
+  var bandpass = context.createBiquadFilter();
+  bandpass.type = 'bandpass';
+  bandpass.Q.value = 10;
+  bandpass.frequency = note;
+
+  //lowpass.connect(bandpass);
+  //bandpass.connect(highpass);
+
+  //var filter_in = lowpass;
+  //var filter_out = highpass;
+
+  var filter_in = bandpass;
+  var filter_out = bandpass;
+
+  var s1 = source(note, 'triangle');
+  var s2 = source(note, 'square');
+  var s3 = source(note, 'sawtooth');
+
+  var g1 = gain(0.1);
+  var g2 = gain(0.5);
+  var g3 = gain(1.0);
+
+  s1.detune.value = 0;
+  s2.detune.value = 0;
+  s3.detune.value = 0;
+
+  lfo1.connect(s1.frequency);
+  lfo2.connect(s2.frequency);
+  lfo3.connect(s3.frequency);
+
+  s1.connect(g1);
+  s2.connect(g2);
+  s3.connect(g3);
+
+  g1.connect(filter_in);
+  g2.connect(filter_in);
+  g3.connect(filter_in);
+
+  var env = envelope([0,1,3,2], 0.10);
+  filter_out.connect(env.node);
+
+  //var sources = [s1, s2, s3, env];
+  var sources = [s1, s2, s3, env];
+
+  return {
+    start: function(time) {
+      sources.forEach(function(s) {
+        s.start(time);
+      });
+    },
+    stop: function(time) {
+      sources.forEach(function(s) {
+        s.stop(time);
+      });
+    },
+    connect: function(node) {
+      env.connect(node);
+    }
+  };
+}
+
+var test_sound = false;
+function test() {
+  var s = create_sound(220);
+  s.start(0);
+  s.stop(1);
+  s.connect(context.destination);
+}
+
 function play(note) {
   if (Array.isArray(note)) {
     return note.map(play).reduce(function(accum, next) { accum.push(next); return accum; }, []);
   }
   else {
-    var lfo = source(5, 'sine');
-    var lfoGain = context.createGain();
-    lfoGain.gain.value = 3;
-    lfo.connect(lfoGain);
-
-    var s1 = source(note, 'triangle');
-    var s2 = source(note, 'sine');
-    var s3 = source(note, 'triangle');
-    s1.detune.value = 2;
-    s2.detune.value = -2;
-    s3.detune.value = 0;
-    //lfoGain.connect(s1.frequency);
-    lfoGain.connect(s2.frequency);
-    //lfoGain.connect(s3.frequency);
-
-    return [lfo, s1, s2, s3];
+    return create_sound(note);
   }
 }
 
@@ -324,7 +498,14 @@ function createScore() {
   }, []);
   return score;
 };
-score = play(createScore());
+
+if (!test_sound) {
+  score = play(createScore());
+  perform(score);
+}
+else {
+  test();
+}
 
 // http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-way
 function impulseResponse( duration, decay, reverse ) {
@@ -463,6 +644,7 @@ function load_resources(cb) {
   });
 };
 
+/*
 load_resources(function(err, results) {
   perform([
     [playSound(results.c3)],
@@ -475,11 +657,15 @@ load_resources(function(err, results) {
     [playSound(results.c4)]
   ]);
 });
+*/
 
 function perform(score) {
+
+  /*
   var filter = context.createBiquadFilter();
   filter.type = 'bandpass';
   filter.Q.value = 1;
+  */
 
   /*
   var noise = createBrownNoise();
@@ -489,10 +675,8 @@ function perform(score) {
   noiseGain.connect(context.destination);
   */
 
-  //var convolve = context.createConvolver();
-  //convolve.buffer = impulseResponse(0.75, 2, false);
-  //filter.connect(convolve);
-  var convolve = filter;
+  var convolve = context.createConvolver();
+  convolve.buffer = impulseResponse(0.5, 6, false);
 
   score.forEach(function(chord, idx) {
     if (!Array.isArray(chord))
@@ -502,7 +686,7 @@ function perform(score) {
       var start = context.currentTime + idx * spb;
       var stop = context.currentTime + spb * idx + spb;
 
-      c.connect(filter);
+      c.connect(convolve);
       c.start(start);
       c.stop(stop);
     });
@@ -522,26 +706,14 @@ function perform(score) {
 
   delay.connect(wetlevel);
 
-  var lfo = context.createOscillator();
-  lfo.frequency.value = 10;
-
-  var lfoGain = context.createGain();
-  lfoGain.gain.value = 0.05;
-
-  lfo.connect(lfoGain);
-
-  var gain = context.createGain();
-  gain.gain.value = 10;
-
-  lfoGain.connect(gain.gain);
-  lfo.start();
+  var masterGain = gain(4);
 
   var compressor = context.createDynamicsCompressor();
 
-  convolve.connect(gain);
-  gain.connect(delay);
+  convolve.connect(masterGain);
+  //gain.connect(delay);
 
-  gain.connect(compressor);
+  masterGain.connect(compressor);
   wetlevel.connect(compressor);
 
   compressor.connect(context.destination);
