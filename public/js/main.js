@@ -217,36 +217,12 @@ function gen_adsr(a, d, s, r) {
   return waveArray;
 }
 
-var envelopes = { };
+function create_envelope(adsr) {
+  return gen_adsr.apply(this, adsr);
+}
 
 function envelope(adsr, duration) {
-  var node = envelopes;
-  var parts = adsr.slice();
-  var buf = null;
-  while (node && parts.length > 0) {
-    node = node[parts.shift()];
-  }
-
-  if (!node) {
-    buf = gen_adsr.apply(this, adsr);
-    parts = adsr.slice();
-    node = envelopes;
-    while (parts.length > 0) {
-      var next = parts.shift();
-      if (!node[next]) {
-        node[next] = {};
-      }
-      if (parts.length > 0) {
-        node = node[next];
-      }
-      else {
-        node[next] = buf;
-      }
-    }
-  }
-  else {
-    buf = node;
-  }
+  var buf = create_envelope(adsr);
 
   var env = context.createGain();
   var start = 0;
@@ -278,6 +254,16 @@ function gain(val) {
   return g;
 }
 
+function filter(freq, value, type) {
+  value = value || 1;
+  type = type || 'bandpass';
+  var f = context.createBiquadFilter();
+  f.type = type;
+  f.frequency = freq;
+  f.Q.value = value;
+  return f;
+}
+
 function create_lfo(freq, amp) {
   var lfo = source(freq, 'sine');
   var lfoGain = context.createGain();
@@ -288,66 +274,200 @@ function create_lfo(freq, amp) {
   return lfoGain;
 }
 
-function create_sound(note) {
-  var lfo1 = create_lfo(0.8, 0.7);
-  var lfo2 = create_lfo(0.5, 0.5);
-  var lfo3 = create_lfo(0.7, 0.3);
+create_sound = pluck;
+
+function pluck(note) {
+  var s1 = source(note, 'sawtooth');
+  var s2 = source(note, 'square');
+  var s3 = source(octave(note, -1), 'sawtooth');
+  var s4 = source(octave(note, -1), 'square');
+  var s5 = source(note, 'triangle');
+  var s6 = source(note, 'square');
+
+  var g1 = gain(1.0);
+  var g2 = gain(0.2);
+  var g3 = gain(0.3);
+
+  s1.connect(g1);
+  s2.connect(g1);
+  s3.connect(g2);
+  s4.connect(g2);
+  s5.connect(g3);
+  s6.connect(g3);
+
+  var filter_envelope = create_envelope([1,2,0,1]);
+  for (var idx = 0; idx < filter_envelope.length; ++idx)
+    filter_envelope[idx] *= note * 0.7;
+
+  var filter_envelope2 = create_envelope([1,3,6,4]);
+  for (var idx = 0; idx < filter_envelope2.length; ++idx)
+    filter_envelope2[idx] *= note * 1.3;
+
+  var f = filter(note, 2, 'lowpass');
+  var f2 = filter(note, 0.3, 'bandpass');
+
+  var env1 = envelope([1,5,0,4], 0.3);
+  var env2 = envelope([2,3,5,2], 0.05);
+
+  g1.connect(env1.node);
+  g2.connect(env1.node);
+  g3.connect(env2.node);
+
+  env1.connect(f);
+  env2.connect(f2);
+
+  var mg = gain(5.0);
+  f.connect(mg);
+  f2.connect(mg);
+
+  var sources = [s1, s2, s3, s4, s5, s6, env1, env2];
+
+  var start = 0;
+  var stop = 0;
+
+  return {
+    start: function(time) {
+      start = time;
+      sources.forEach(function(s) {
+        s.start(time);
+      });
+      f.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
+      f2.frequency.setValueCurveAtTime(filter_envelope2, start, stop - start);
+    },
+    stop: function(time) {
+      stop = time;
+      sources.forEach(function(s) {
+        s.stop(time);
+      });
+      f.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
+      f2.frequency.setValueCurveAtTime(filter_envelope2, start, stop - start);
+    },
+    connect: function(node) {
+      mg.connect(node);
+    }
+  };
+}
+
+function flute(note) {
+  var s1 = source(note, 'sine');
+  var s2 = source(octave(note, 1), 'sine');
+  var s3 = source(pitch(octave(note, 1), 7), 'sine');
+
+  var f1 = filter(note, 1, 'lowpass');
+  var f2 = filter(octave(note, 1), 1, 'lowpass');
+  var f3 = filter(pitch(octave(note, 1), 7), 1, 'lowpass');
+
+  var g1 = gain(1.0);
+  var g2 = gain(0.5);
+  var g3 = gain(0.33);
+
+  s1.detune.value = 0;
+  s2.detune.value = 0;
+  s3.detune.value = 0;
+
+  s1.connect(g1);
+  s2.connect(g2);
+  s3.connect(g3);
+
+  g1.connect(f1);
+  g2.connect(f2);
+  g3.connect(f3);
+
+  var env = envelope([3,10,20,1], 1);
+
+  f1.connect(env.node);
+  f2.connect(env.node);
+  f3.connect(env.node);
+
+  var sources = [s1, s2, s3, env];
+
+  return {
+    start: function(time) {
+      sources.forEach(function(s) {
+        s.start(time);
+      });
+    },
+    stop: function(time) {
+      sources.forEach(function(s) {
+        s.stop(time);
+      });
+    },
+    connect: function(node) {
+      env.connect(node);
+    }
+  };
+}
+
+function marimba(note) {
+  var lfo1 = create_lfo(0.5, 4);
+  var lfo2 = create_lfo(0.4, 3);
+  var lfo3 = create_lfo(0.3, 2);
+  var lfo4 = create_lfo(0.2, 1);
 
   /*
   var lowpass = context.createBiquadFilter();
   lowpass.type = 'lowpass';
-  lowpass.Q.value = 0.1;
+  lowpass.Q.value = 0.001;
   lowpass.frequency = note;
+  */
 
   var highpass = context.createBiquadFilter();
   highpass.type = 'highpass';
-  highpass.Q.value = 0.1;
+  highpass.Q.value = 0.01;
   highpass.frequency = note;
-  */
 
   var bandpass = context.createBiquadFilter();
   bandpass.type = 'bandpass';
-  bandpass.Q.value = 10;
+  bandpass.Q.value = 1;
   bandpass.frequency = note;
 
   //lowpass.connect(bandpass);
   //bandpass.connect(highpass);
-
-  //var filter_in = lowpass;
-  //var filter_out = highpass;
+  //lowpass.connect(highpass);
 
   var filter_in = bandpass;
   var filter_out = bandpass;
 
   var s1 = source(note, 'triangle');
   var s2 = source(note, 'square');
-  var s3 = source(note, 'sawtooth');
+  var s3 = source(octave(note, 2), 'triangle');
+  var s4 = source(pitch(octave(note, 3), 4), 'triangle');
 
-  var g1 = gain(0.1);
-  var g2 = gain(0.5);
-  var g3 = gain(1.0);
+  var f1 = filter(note, 0.1, 'lowpass');
+  var f2 = filter(octave(note, 2), 10, 'lowpass');
+  var f3 = filter(pitch(octave(note, 3), 4), 20, 'lowpass');
+
+  var g1 = gain(1.0);
+  var g2 = gain(0.3);
+  var g3 = gain(0.50);
+  var g4 = gain(0.25);
 
   s1.detune.value = 0;
   s2.detune.value = 0;
   s3.detune.value = 0;
+  s4.detune.value = 0;
 
   lfo1.connect(s1.frequency);
   lfo2.connect(s2.frequency);
   lfo3.connect(s3.frequency);
+  lfo4.connect(s4.frequency);
 
   s1.connect(g1);
   s2.connect(g2);
   s3.connect(g3);
+  s4.connect(g4);
 
-  g1.connect(filter_in);
-  g2.connect(filter_in);
-  g3.connect(filter_in);
+  g1.connect(f1);
+  g2.connect(f1);
+  g3.connect(f2);
+  g4.connect(f3);
 
-  var env = envelope([0,1,3,2], 0.10);
-  filter_out.connect(env.node);
+  var env = envelope([0,1,1,20]);
+  f1.connect(env.node);
+  f2.connect(env.node);
+  f3.connect(env.node);
 
-  //var sources = [s1, s2, s3, env];
-  var sources = [s1, s2, s3, env];
+  var sources = [s1, s2, s3, s4, env];
 
   return {
     start: function(time) {
@@ -368,10 +488,12 @@ function create_sound(note) {
 
 var test_sound = false;
 function test() {
-  var s = create_sound(220);
+  var s = create_sound(440);
   s.start(0);
-  s.stop(1);
-  s.connect(context.destination);
+  s.stop(0.4);
+  var c = context.createDynamicsCompressor();
+  s.connect(c);
+  c.connect(context.destination);
 }
 
 function play(note) {
@@ -420,7 +542,7 @@ function aug(key) {
 var bpm = 120 * 2;
 var spb = 60 / bpm;
 
-var A = 220;
+var A = 440;
 
 var notes = {
   Ab: pitch(A, -1),
@@ -481,7 +603,6 @@ function createScore() {
     window[key] = notes[key];
   }
 
-  var rest = 0;
   var scale_up = minor_ascending(C);
   var scale_down = minor_descending(C);
 
@@ -489,6 +610,8 @@ function createScore() {
     scale_up,
     octave(scale_up, 1),
     octave(scale_up, 2),
+    octave(scale_up, 3),
+    octave(scale_down, 4),
     octave(scale_down, 3),
     octave(scale_down, 2),
     octave(scale_down, 1),
@@ -498,6 +621,32 @@ function createScore() {
   }, []);
   return score;
 };
+
+function createScore() {
+  for (var key in notes) {
+    window[key] = notes[key];
+  }
+
+  var score = [
+    [As, octave(D, -1), octave(G, -2)],
+    [As, octave(D, -1), octave(G, -2)],
+    [As, octave(D, -1), octave(G, -2)],
+    [As, octave(D, -1), octave(G, -2)],
+    [As, octave(D, -1), octave(G, -2)],
+    [As, octave(D, -1), octave(G, -2)],
+    [As, octave(D, -1), octave(G, -2)],
+    [A, octave(D, -1), octave(F, -2)],
+    [A, octave(D, -1), octave(F, -2)],
+    [A, octave(D, -1), octave(F, -2)],
+    [A, octave(D, -1), octave(F, -2)],
+    [octave(F, -1), octave(D, -1), octave(As, -1)],
+    [octave(F, -1), octave(D, -1), octave(As, -1)],
+    [octave(F, -1), octave(D, -1), octave(As, -1)],
+    [octave(F, -1), octave(D, -1), octave(As, -1)],
+    [octave(F, -1), octave(D, -1), octave(As, -1)]
+  ];
+  return score.concat(score).concat(score);
+}
 
 if (!test_sound) {
   score = play(createScore());
@@ -676,7 +825,7 @@ function perform(score) {
   */
 
   var convolve = context.createConvolver();
-  convolve.buffer = impulseResponse(0.5, 6, false);
+  convolve.buffer = impulseResponse(0.5, 20, false);
 
   score.forEach(function(chord, idx) {
     if (!Array.isArray(chord))
@@ -696,7 +845,7 @@ function perform(score) {
   delay.delayTime.value = spb / 2;
 
   var feedback = context.createGain();
-  feedback.gain.value = 0.25;
+  feedback.gain.value = 0.5;
 
   var wetlevel = context.createGain();
   wetlevel.gain.value = 0.25;
@@ -706,12 +855,12 @@ function perform(score) {
 
   delay.connect(wetlevel);
 
-  var masterGain = gain(4);
+  var masterGain = gain(1);
 
   var compressor = context.createDynamicsCompressor();
 
   convolve.connect(masterGain);
-  //gain.connect(delay);
+  masterGain.connect(delay);
 
   masterGain.connect(compressor);
   wetlevel.connect(compressor);
