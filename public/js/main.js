@@ -5,11 +5,20 @@ window.oncontextmenu = onRightClick;
 function onRightClick(evt) {
   evt.preventDefault();
   sink(evt.x, evt.y);
+  if (!document.fullscreen)
+    canvas.webkitRequestFullscreen();
 }
 
 function onLeftClick(evt) {
   particle(evt.x, evt.y);
+  if (!document.fullscreen)
+    canvas.webkitRequestFullscreen();
 }
+
+document.body.addEventListener('keydown', function() {
+  if (!document.fullscreen)
+    canvas.webkitRequestFullscreen();
+}, false);
 
 var width = window.innerWidth;
 var height = window.innerHeight;
@@ -23,6 +32,7 @@ var renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(width, height);
 renderer.autoClear = false;
 document.body.appendChild(renderer.domElement);
+var canvas = renderer.domElement;
 
 var particles = [];
 var sinks = [];
