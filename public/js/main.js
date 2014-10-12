@@ -1,38 +1,46 @@
 window.onresize = init;
 window.onclick = onLeftClick;
 window.oncontextmenu = onRightClick;
+window.onkeydown = set_fullscreen;
+
+var fullscreen_mode = false;
+function set_fullscreen() {
+  if (fullscreen_mode && !document.fullscreen)
+    container.webkitRequestFullscreen();
+}
+
+var scale = {
+  x: 2,
+  y: 2
+}
 
 function onRightClick(evt) {
   evt.preventDefault();
-  sink(evt.x, evt.y);
-  if (!document.fullscreen)
-    canvas.webkitRequestFullscreen();
+  sink(evt.x / scale.x, evt.y / scale.y);
+  set_fullscreen();
 }
 
 function onLeftClick(evt) {
-  particle(evt.x, evt.y);
-  if (!document.fullscreen)
-    canvas.webkitRequestFullscreen();
+  console.log(evt.x, evt.y);
+  particle(evt.x / scale.x, evt.y / scale.y);
+  set_fullscreen();
 }
 
-document.body.addEventListener('keydown', function() {
-  if (!document.fullscreen)
-    canvas.webkitRequestFullscreen();
-}, false);
-
-var width = window.innerWidth;
-var height = window.innerHeight;
+var width = window.innerWidth / scale.x;
+var height = window.innerHeight / scale.y;
 var depth = 1000;
 
 var scene = new THREE.Scene();
 var stage = new THREE.Scene();
 var accum = new THREE.Scene();
 
-var renderer = new THREE.WebGLRenderer({antialias: true});
+var renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
 renderer.setSize(width, height);
+renderer.domElement.style.width = '100%';
+renderer.domElement.style.height = '100%';
 renderer.autoClear = false;
-document.body.appendChild(renderer.domElement);
-var canvas = renderer.domElement;
+var container = document.getElementById('render_target');
+container.appendChild(renderer.domElement);
 
 var particles = [];
 var sinks = [];
@@ -83,8 +91,8 @@ function sink(x, y) {
 
 function init() {
 
-width = window.innerWidth;
-height = window.innerHeight;
+width = window.innerWidth / scale.x;
+height = window.innerHeight / scale.y;
 depth = 1000;
 
 var bounds = {
@@ -142,13 +150,13 @@ var materialAccum = new THREE.ShaderMaterial({
   depthWrite: true
 });
 
-var plane = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+var plane = new THREE.PlaneGeometry(width, height);
 var quad = new THREE.Mesh(plane, materialScreen);
 quad.position.x += width / 2;
 quad.position.y += height / 2;
 stage.add(quad);
 
-var plane2 = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+var plane2 = new THREE.PlaneGeometry(width, height);
 var quad2 = new THREE.Mesh(plane, materialScreen);
 quad2.position.x += width / 2;
 quad2.position.y += height / 2;
