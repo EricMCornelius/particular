@@ -79,7 +79,6 @@ var bounds = {
   z: [1, depth]
 }
 
-console.log(width, height);
 var camera = new THREE.OrthographicCamera( 0, width, height, 0, 0, 1000 );
 camera.position.x = 0;
 camera.position.y = 0;
@@ -474,40 +473,6 @@ function play(note) {
   }
 }
 
-function chord(intervals, key) {
-  key = key || notes.A;
-  var results = [];
-  intervals.forEach(function(interval) {
-    //results.push(source(pitch(key, interval), 'sawtooth'));
-    var s1 = source(pitch(key, interval), 'sine');
-    var s2 = source(pitch(key, interval), 'sine');
-    var s3 = source(pitch(key, interval), 'sine');
-    s1.detune.value = 3;
-    s2.detune.value = -3;
-    s3.detune.value = 0;
-    results.push(s1);
-    results.push(s2);
-    results.push(s3);
-  });
-  return results;
-}
-
-function major(key) {
-  return chord([0, 4, 7, 12], key);
-}
-
-function minor(key) {
-  return chord([0, 3, 7, 12], key);
-}
-
-function dim(key) {
-  return chord([0, 3, 6, 9, 12], key);
-}
-
-function aug(key) {
-  return chord([0, 4, 8, 12], key);
-}
-
 var bpm = 120 * 2;
 var spb = 60 / bpm;
 
@@ -533,25 +498,6 @@ var notes = {
   Gs: pitch(A, 11)
 };
 
-/*
-var chords = [
-  major(notes.C),
-  major(notes.G),
-  minor(notes.A),
-  major(notes.F)
-];
-
-var chords = [
-  notes.C,
-  notes.E,
-  notes.G,
-  octave(notes.C, 1),
-  notes.G,
-  notes.E,
-  notes.C
-].map(function(note) { return play(note); });
-*/
-
 function duration(note, beats) {
   note.beats = beats || 1;
   return note;
@@ -564,6 +510,16 @@ function minor(key) {
 
 function major(key) {
   return [0, 2, 4, 5, 7, 9, 11]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function dim(key) {
+  return [0, 3, 6, 9, 12]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function aug(key) {
+  return [0, 4, 8, 12]
     .map(function(step) { return pitch(key, step); });
 }
 
@@ -597,7 +553,7 @@ function createScore() {
     window[key] = notes[key];
   }
 
-  var scale = heptatonic_blues(C);
+  var scale = aug(C);
 
   var score = [];
   for (var i = 0; i < 100; ++i) {
