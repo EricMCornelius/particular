@@ -16,7 +16,7 @@ var height = window.innerHeight;
 var depth = 1000;
 
 var scene = new THREE.Scene();
-var renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
+var renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: false});
 renderer.autoClear = false;
 document.body.appendChild(renderer.domElement);
 
@@ -185,7 +185,7 @@ function source(freq, type) {
   return oscillator;
 }
 
-function gen_adsr(a, d, s, r) {
+function gen_adsr(a, d, s, r, sustained_at) {
   var bufferSize = 1024;
   var total = a + d + s + r;
   var attack = a / total * bufferSize;
@@ -193,7 +193,7 @@ function gen_adsr(a, d, s, r) {
   var sustain = s / total * bufferSize;
   var release = r / total * bufferSize;
 
-  var sustained_at = 0.8;
+  var sustained_at = sustained_at || 0.8;
 
   var waveArray = new Float32Array(bufferSize);
   var count = 0;
@@ -217,8 +217,8 @@ function gen_adsr(a, d, s, r) {
   return waveArray;
 }
 
-function create_envelope(adsr) {
-  return gen_adsr.apply(this, adsr);
+function create_envelope(adsr, sustained_at) {
+  return gen_adsr.apply(this, adsr.concat(sustained_at));
 }
 
 function envelope(adsr, duration) {
@@ -274,7 +274,7 @@ function create_lfo(freq, amp) {
   return lfoGain;
 }
 
-create_sound = pluck;
+create_sound = marimba;
 
 function pluck(note) {
   var s1 = source(note, 'sawtooth');
@@ -284,8 +284,15 @@ function pluck(note) {
   var s5 = source(note, 'triangle');
   var s6 = source(note, 'square');
 
+  s1.detune = -5;
+  s2.detune = -4;
+  s3.detune = 1;
+  s4.detune = 5;
+  s5.detune = 3;
+  s6.detune = 2;
+
   var g1 = gain(1.0);
-  var g2 = gain(0.2);
+  var g2 = gain(0.6);
   var g3 = gain(0.3);
 
   s1.connect(g1);
@@ -295,30 +302,40 @@ function pluck(note) {
   s5.connect(g3);
   s6.connect(g3);
 
-  var filter_envelope = create_envelope([1,2,0,1]);
-  for (var idx = 0; idx < filter_envelope.length; ++idx)
-    filter_envelope[idx] *= note * 0.7;
+  var filter_envelope = create_envelope([0.1,2,0,4], 1);
+  for (var idx = 0; idx < filter_envelope.length; ++idx) {
+    filter_envelope[idx] *= note;
+    filter_envelope[idx] += 30;
+  }
 
-  var filter_envelope2 = create_envelope([1,3,6,4]);
-  for (var idx = 0; idx < filter_envelope2.length; ++idx)
-    filter_envelope2[idx] *= note * 1.3;
+  var filter_envelope2 = create_envelope([0,1,2,0,4], 2);
+  for (var idx = 0; idx < filter_envelope2.length; ++idx) {
+    filter_envelope2[idx] *= octave(note, -1) * 0.5;
+    filter_envelope2[idx] += 30;
+  }
 
-  var f = filter(note, 2, 'lowpass');
-  var f2 = filter(note, 0.3, 'bandpass');
+  var filter_envelope3 = create_envelope([0.1,3,6,4], 1);
+  for (var idx = 0; idx < filter_envelope3.length; ++idx)
+    filter_envelope3[idx] *= note;
 
-  var env1 = envelope([1,5,0,4], 0.3);
-  var env2 = envelope([2,3,5,2], 0.05);
+  var f1 = filter(note, 3, 'lowpass');
+  var f2 = filter(note, 10, 'lowpass');
+  var f3 = filter(note, 0.1, 'highpass');
 
-  g1.connect(env1.node);
-  g2.connect(env1.node);
-  g3.connect(env2.node);
+  var env1 = envelope([1,2,0,4], 0.3);
+  var env2 = envelope([1,2,2,5], 0.1);
 
-  env1.connect(f);
-  env2.connect(f2);
+  g1.connect(f1);
+  g2.connect(f2);
+  g3.connect(f3);
 
-  var mg = gain(5.0);
-  f.connect(mg);
-  f2.connect(mg);
+  f1.connect(env1.node);
+  f2.connect(env1.node);
+  f3.connect(env2.node);
+
+  var mg = gain(0.1);
+  env1.node.connect(mg);
+  env2.node.connect(mg);
 
   var sources = [s1, s2, s3, s4, s5, s6, env1, env2];
 
@@ -331,69 +348,21 @@ function pluck(note) {
       sources.forEach(function(s) {
         s.start(time);
       });
-      f.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
+      f1.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
       f2.frequency.setValueCurveAtTime(filter_envelope2, start, stop - start);
+      f3.frequency.setValueCurveAtTime(filter_envelope3, start, stop - start);
     },
     stop: function(time) {
       stop = time;
       sources.forEach(function(s) {
         s.stop(time);
       });
-      f.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
+      f1.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
       f2.frequency.setValueCurveAtTime(filter_envelope2, start, stop - start);
+      f3.frequency.setValueCurveAtTime(filter_envelope3, start, stop - start);
     },
     connect: function(node) {
       mg.connect(node);
-    }
-  };
-}
-
-function flute(note) {
-  var s1 = source(note, 'sine');
-  var s2 = source(octave(note, 1), 'sine');
-  var s3 = source(pitch(octave(note, 1), 7), 'sine');
-
-  var f1 = filter(note, 1, 'lowpass');
-  var f2 = filter(octave(note, 1), 1, 'lowpass');
-  var f3 = filter(pitch(octave(note, 1), 7), 1, 'lowpass');
-
-  var g1 = gain(1.0);
-  var g2 = gain(0.5);
-  var g3 = gain(0.33);
-
-  s1.detune.value = 0;
-  s2.detune.value = 0;
-  s3.detune.value = 0;
-
-  s1.connect(g1);
-  s2.connect(g2);
-  s3.connect(g3);
-
-  g1.connect(f1);
-  g2.connect(f2);
-  g3.connect(f3);
-
-  var env = envelope([3,10,20,1], 1);
-
-  f1.connect(env.node);
-  f2.connect(env.node);
-  f3.connect(env.node);
-
-  var sources = [s1, s2, s3, env];
-
-  return {
-    start: function(time) {
-      sources.forEach(function(s) {
-        s.start(time);
-      });
-    },
-    stop: function(time) {
-      sources.forEach(function(s) {
-        s.stop(time);
-      });
-    },
-    connect: function(node) {
-      env.connect(node);
     }
   };
 }
@@ -542,7 +511,7 @@ function aug(key) {
 var bpm = 120 * 2;
 var spb = 60 / bpm;
 
-var A = 440;
+var A = 110;
 
 var notes = {
   Ab: pitch(A, -1),
@@ -588,14 +557,39 @@ function duration(note, beats) {
   return note;
 }
 
-function minor_ascending(key) {
-  return [0, null, 2, 3, 5, 7, 9, 11]
+function minor(key) {
+  return [0, 2, 3, 5, 7, 9, 11]
     .map(function(step) { return pitch(key, step); });
 }
 
-function minor_descending(key) {
-  return [0, null, -2, -4, -5, -7, -9, -10]
+function major(key) {
+  return [0, 2, 4, 5, 7, 9, 11]
     .map(function(step) { return pitch(key, step); });
+}
+
+function heptatonic_blues(key) {
+  return [0, 2, 3, 5, 6, 9, 10]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function melodic_minor_asc(key) {
+  return [0, 2, 3, 5, 7, 9, 11]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function melodic_minor_desc(key) {
+  return [0, -2, -4, -5, -7, -9, -10]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function pentatonic_major(key) {
+  return [0, 2, 4, 7, 9]
+    .map(function(step) { return pitch(key, step); });
+}
+
+function pentatonic_minor(key) {
+  return [0, 3, 5, 7, 11]
+    .map(function(step) { return pitch(key, step) });
 }
 
 function createScore() {
@@ -603,15 +597,39 @@ function createScore() {
     window[key] = notes[key];
   }
 
-  var scale_up = minor_ascending(C);
-  var scale_down = minor_descending(C);
+  var scale = heptatonic_blues(C);
+
+  var score = [];
+  for (var i = 0; i < 100; ++i) {
+    var beat = [];
+    var n1 = Math.floor(Math.random() * 5);
+    var n2 = Math.floor(Math.random() * 5);
+    if (Math.random() > 0.1) {
+      beat.push(scale[n1]);
+    }
+    if (Math.random() > 0.7) {
+      beat.push(octave(scale, 1)[n2]);
+    }
+    score.push(beat);
+  }
+  return score;
+}
+
+/*
+function createScore() {
+  for (var key in notes) {
+    window[key] = notes[key];
+  }
+
+  var scale_up = minor_pentatonic(C);
+  var scale_down = minor_pentatonic(C).reverse();
 
   var score = [
     scale_up,
     octave(scale_up, 1),
     octave(scale_up, 2),
     octave(scale_up, 3),
-    octave(scale_down, 4),
+    octave(C, 4),
     octave(scale_down, 3),
     octave(scale_down, 2),
     octave(scale_down, 1),
@@ -621,7 +639,9 @@ function createScore() {
   }, []);
   return score;
 };
+*/
 
+/*
 function createScore() {
   for (var key in notes) {
     window[key] = notes[key];
@@ -647,6 +667,7 @@ function createScore() {
   ];
   return score.concat(score).concat(score);
 }
+*/
 
 if (!test_sound) {
   score = play(createScore());
@@ -809,13 +830,6 @@ load_resources(function(err, results) {
 */
 
 function perform(score) {
-
-  /*
-  var filter = context.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.Q.value = 1;
-  */
-
   /*
   var noise = createBrownNoise();
   var noiseGain = context.createGain();
@@ -866,26 +880,9 @@ function perform(score) {
   wetlevel.connect(compressor);
 
   compressor.connect(context.destination);
+
+  setTimeout(function() {
+    score = play(createScore());
+    perform(score);
+  }, score.length / bpm * 60 * 1000);
 };
-
-//perform(score);
-
-function audio() {
-  //var sources = aug(440);
-
-  //var sources = play([notes.C, notes.E, notes.G, octave(notes.E, -1)]);
-
-  /*
-  var gain = context.createGain();
-  gain.gain.value = 0.02;
-
-  sources.map(function(source) {
-    source.connect(gain);
-    source.noteOn(0);
-  });
-
-  gain.connect(context.destination);
-  */
-}
-
-audio();
