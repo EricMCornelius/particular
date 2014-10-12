@@ -2,6 +2,64 @@
 <head>
 <title>My first Three.js app</title>
 <style>canvas { width: 100%; height: 100% }</style>
+
+<script id="fragment_shader_screen" type="x-shader/x-fragment">
+
+  varying vec2 vUv;
+  uniform sampler2D tDiffuse;
+
+  uniform float width;
+  uniform float height;
+
+  void main() {
+
+    vec4 sum = vec4(0.0);
+
+    sum += texture2D(tDiffuse, vec2(vUv.x - 1.0 * width, vUv.y - 1.0 * height)) * 1.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x,               vUv.y - 1.0 * height)) * 2.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x + 1.0 * width, vUv.y - 1.0 * height)) * 1.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x - 1.0 * width, vUv.y               )) * 2.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x,               vUv.y               )) * 4.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x + 1.0 * width, vUv.y               )) * 2.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x - 1.0 * width, vUv.y + 1.0 * height)) * 1.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x,               vUv.y + 1.0 * height)) * 2.0;
+    sum += texture2D(tDiffuse, vec2(vUv.x + 1.0 * width, vUv.y + 1.0 * height)) * 1.0;
+
+    sum /= 16.0;
+    sum -= 0.001;
+    gl_FragColor = vec4(sum.rgb, 1.0);
+  }
+
+</script>
+
+<script id="fragment_shader_accum" type="x-shader/x-fragment">
+
+  uniform sampler2D tDiffuse;
+  varying vec2 vUv;
+  uniform float opacity;
+
+  void main() {
+    //gl_FragColor = vec3(1.0, 0, 0);
+    vec4 color = opacity * texture2D(tDiffuse, vUv) - 1.0;
+    gl_FragColor = color;
+  }
+
+</script>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+
+  varying vec2 vUv;
+
+  void main() {
+
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+  }
+
+</script>
+
+
 </head>
 <body>
 <script type='text/javascript' src='//cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js'></script>

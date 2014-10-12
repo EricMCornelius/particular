@@ -16,7 +16,11 @@ var height = window.innerHeight;
 var depth = 1000;
 
 var scene = new THREE.Scene();
-var renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: false});
+var stage = new THREE.Scene();
+var accum = new THREE.Scene();
+
+var renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(width, height);
 renderer.autoClear = false;
 document.body.appendChild(renderer.domElement);
 
@@ -79,50 +83,72 @@ var bounds = {
   z: [1, depth]
 }
 
-var camera = new THREE.OrthographicCamera( 0, width, height, 0, 0, 1000 );
+var camera = new THREE.OrthographicCamera(0, width, height, 0, 0, 1000);
 camera.position.x = 0;
 camera.position.y = 0;
 camera.position.z =  1000;
 
-renderer.setSize(width, height);
+var parameters = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat, stencilBuffer: false, depthBuffer: true };
+var framebuffer = new THREE.WebGLRenderTarget(width, height, parameters);
+var framebuffer2 = new THREE.WebGLRenderTarget(width, height, parameters);
 
-var parameters = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat, stencilBuffer: false };
-var accum = new THREE.WebGLRenderTarget(width, height, parameters);
+var uniforms = {
+  tDiffuse: {
+    type: 't',
+    value: framebuffer
+  },
+  width: {
+    type: 'f',
+    value: 1.0 / width
+  },
+  height: {
+    type: 'f',
+    value: 1.0 / height
+  }
+};
 
-var composer = new THREE.EffectComposer(renderer);
+var uniforms2 = {
+  tDiffuse: {
+    type: 't',
+    value: framebuffer
+  },
+  opacity: {
+    type: 'f',
+    value: 0.99
+  }
+};
 
-var savePass = new THREE.SavePass(accum);
+var materialScreen = new THREE.ShaderMaterial({
+  uniforms: uniforms,
+  vertexShader: document.getElementById('vertexShader').textContent,
+  fragmentShader: document.getElementById('fragment_shader_screen').textContent,
+  depthWrite: true
+});
 
-var texturePass = new THREE.TexturePass(savePass.renderTarget);
+var materialAccum = new THREE.ShaderMaterial({
+  uniforms: uniforms2,
+  vertexShader: document.getElementById('vertexShader').textContent,
+  fragmentShader: document.getElementById('fragment_shader_accum').textContent,
+  depthWrite: true
+});
 
-var renderPass = new THREE.RenderPass(scene, camera);
-//renderPass.clear = false;
+var plane = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+var quad = new THREE.Mesh(plane, materialScreen);
+quad.position.x += width / 2;
+quad.position.y += height / 2;
+stage.add(quad);
 
-var blurShader = new THREE.ShaderPass(THREE.BlurShader);
-blurShader.uniforms.width.value = 1.0 / width / 2;
-blurShader.uniforms.height.value = 1.0 / height / 2;
+var plane2 = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+var quad2 = new THREE.Mesh(plane, materialScreen);
+quad2.position.x += width / 2;
+quad2.position.y += height / 2;
+accum.add(quad2);
 
-var blendShader = new THREE.ShaderPass(THREE.AdditiveShader, 'tDiffuse1');
-blendShader.uniforms.tDiffuse2.value = savePass.renderTarget;
-
-var fadeShader = new THREE.ShaderPass(THREE.FadeShader);
-fadeShader.uniforms.opacity.value = 0.95;
-
-var copyPass = new THREE.ShaderPass(THREE.CopyShader);
-copyPass.renderToScreen = true;
-
-composer.addPass(texturePass);
-composer.addPass(renderPass);
-composer.addPass(blendShader);
-composer.addPass(blurShader);
-composer.addPass(fadeShader);
-composer.addPass(savePass);
-composer.addPass(copyPass);
-
+var loop_count = 0;
 function render() {
-  //renderer.clear();
-  composer.render();
   requestAnimationFrame(render);
+
+  ++loop_count;
 
   particles.forEach(function(particle) {
     var ax = 0;
@@ -156,6 +182,18 @@ function render() {
   sinks.forEach(function(sink) {
     sink.verticesNeedUpdate = true;
   });
+
+  renderer.clear();
+  renderer.render(scene, camera, framebuffer, false);
+  renderer.render(accum, camera, framebuffer2, true);
+  renderer.render(stage, camera);
+
+  var a = framebuffer2;
+  framebuffer2 = framebuffer;
+  framebuffer = a;
+
+  uniforms.tDiffuse.value = framebuffer;
+  uniforms2.tDiffuse.value = framebuffer;
 }
 render();
 
