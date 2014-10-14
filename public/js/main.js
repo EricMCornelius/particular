@@ -71,10 +71,16 @@ function onLeftDown(x, y) {
 }
 
 function onLeftUp(x, y) {
-  var vx = (x - start_position.x);
-  var vy = (y - start_position.y);
-  particle(start_position.x, start_position.y, vx, vy);
+  var sx = start_position.x;
+  var sy = start_position.y;
   start_position = null;
+
+  var vx = (x - sx);
+  var vy = (y - sy);
+
+  setInterval(function() {
+    particle(sx, sy, vx, vy)
+  }, 1000);
 }
 
 function onMiddleDown(x, y) {
@@ -156,10 +162,12 @@ function bound(val, min, max) {
   return Math.min(Math.max(val, min), max);
 }
 
+var id = 0;
 function particle(x, y, vx, vy) {
   var mat = randMat();
   var mesh = new THREE.Mesh(particle_geometry, mat);
   particles.push({
+    id: ++id,
     position: {
       x: x,
       y: y
@@ -179,7 +187,7 @@ function particle(x, y, vx, vy) {
 }
 
 function wormhole(x1, y1, x2, y2) {
-  var radius_scale = rand(0.5, 2);
+  var radius_scale = rand(1, 2);
   var mat = randMat();
 
   var mesh = new THREE.Mesh(sink_geometry, mat);
@@ -201,7 +209,7 @@ function wormhole(x1, y1, x2, y2) {
     start: mesh,
     end: end_mesh,
     radius: sink_radius * radius_scale,
-    active: true
+    inactive: {}
   });
 }
 
@@ -262,13 +270,39 @@ var lineMaterial = new THREE.LineDashedMaterial({
   dashSize: 10
 });
 
+var zoneMaterial = new THREE.LineDashedMaterial({
+  color: 0xaa33aa,
+  linewidth: 5,
+  gapSize: 5,
+  dashSize: 5
+});
+
 var lineGeometry = new THREE.Geometry();
 lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
 lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
 lineGeometry.computeLineDistances();
 
+var zoneGeometry = new THREE.Geometry();
+var segmentCount = 32, radius = 100;
+
+for (var i = 0; i <= segmentCount; i++) {
+  var theta = (i / segmentCount) * Math.PI * 2;
+  zoneGeometry.vertices.push(new THREE.Vector3(
+    Math.cos(theta) * radius,
+    Math.sin(theta) * radius,
+    1)
+  );
+}
+zoneGeometry.computeLineDistances();
+
 var line = new THREE.Line(lineGeometry, lineMaterial);
+line.visible = false;
 overlay.add(line);
+
+var zone = new THREE.Line(zoneGeometry, zoneMaterial);
+zone.position.x = width / 2;
+zone.position.y = height / 2;
+overlay.add(zone);
 
 var plane = new THREE.PlaneGeometry(width, height);
 var quad = new THREE.Mesh(plane, materialScreen);
@@ -278,7 +312,8 @@ stage.add(quad);
 
 var loop_count = 0;
 var last_time = 0;
-var steps = 80;
+var cumulative_time = 0;
+var steps = 10;
 
 var friction = 0.9975;
 var gravitation = 4000;
@@ -286,12 +321,16 @@ var speed = 1;
 
 function render(time) {
   requestAnimationFrame(render);
-  var delta = (time - last_time) / 1000;
+  cumulative_time += time - last_time;
   last_time = time;
+
+  if (cumulative_time < 16)
+    return;
+  cumulative_time -= 16;
   ++loop_count;
 
   var meshes = [];
-  var step = speed * delta * (1.0 / steps);
+  var step = speed * 16 / 1000 * (1.0 / steps);
 
   particles = particles.filter(function(particle) {
     var last = null;
@@ -305,6 +344,7 @@ function render(time) {
 
         if (Math.abs(dx) < sink.radius && Math.abs(dy) < sink.radius) {
           particle.collided = sink;
+          perform(play(randomNote()));
           return;
         }
 
@@ -317,7 +357,7 @@ function render(time) {
       });
 
       wormholes.forEach(function(wormhole) {
-        if (!wormhole.active) return;
+        if (wormhole.inactive[particle.id]) return;
 
         var jump_to = null;
         [wormhole.start, wormhole.end].forEach(function(point, idx) {
@@ -334,9 +374,9 @@ function render(time) {
           particle.position.x = position.x;
           particle.position.y = position.y;
 
-          wormhole.active = false;
+          wormhole.inactive[particle.id] = true;
           setTimeout(function() {
-            wormhole.active = true;
+            wormhole.inactive[particle.id] = false;
           }, 100);
         }
       });
@@ -384,6 +424,7 @@ function render(time) {
   renderer.render(stage, camera, framebuffer2, true);
 
   if (start_position) {
+    line.visible = true;
     lineGeometry.vertices[0].x = start_position.x;
     lineGeometry.vertices[0].y = start_position.y;
     lineGeometry.vertices[1].x = mouse_position.x;
@@ -393,10 +434,13 @@ function render(time) {
     lineGeometry.lineDistancesNeedUpdate = true;
 
     lineGeometry.verticesNeedUpdate = true;
-
-    // render overlay to screen
-    renderer.render(overlay, camera);
   }
+  else {
+    line.visible = false;
+  }
+
+  // render overlay to screen
+  renderer.render(overlay, camera);
 
   // swap buffers
   var a = framebuffer2;
@@ -706,6 +750,7 @@ function marimba(note) {
   };
 }
 
+var repeat = false;
 var test_sound = false;
 function test() {
   var s = create_sound(440);
@@ -800,6 +845,15 @@ function pentatonic_minor(key) {
     .map(function(step) { return pitch(key, step) });
 }
 
+function randomNote() {
+  for (var key in notes) {
+    window[key] = notes[key];
+  }
+
+  var scale = pentatonic_minor(C);
+  return [scale[int(rand(0, scale.length))]];
+}
+
 function createScore() {
   for (var key in notes) {
     window[key] = notes[key];
@@ -878,8 +932,8 @@ function createScore() {
 */
 
 if (!test_sound) {
-  score = play(createScore());
-  perform(score);
+  //score = play(createScore());
+  //perform(score);
 }
 else {
   test();
@@ -1035,31 +1089,9 @@ load_resources(function(err, results) {
 });
 */
 
-function perform(score) {
-  /*
-  var noise = createBrownNoise();
-  var noiseGain = context.createGain();
-  noiseGain.gain.value = 0.1;
-  noise.connect(noiseGain);
-  noiseGain.connect(context.destination);
-  */
-
+function initAudioGraph() {
   var convolve = context.createConvolver();
   convolve.buffer = impulseResponse(0.5, 20, false);
-
-  score.forEach(function(chord, idx) {
-    if (!Array.isArray(chord))
-      chord = [chord];
-
-    chord.map(function(c) {
-      var start = context.currentTime + idx * spb;
-      var stop = context.currentTime + spb * idx + spb;
-
-      c.connect(convolve);
-      c.start(start);
-      c.stop(stop);
-    });
-  });
 
   var delay = context.createDelay();
   delay.delayTime.value = spb / 2;
@@ -1087,8 +1119,38 @@ function perform(score) {
 
   compressor.connect(context.destination);
 
-  setTimeout(function() {
-    score = play(createScore());
-    perform(score);
-  }, score.length / bpm * 60 * 1000);
+  return convolve;
+}
+
+var graph = initAudioGraph();
+
+function perform(score) {
+  /*
+  var noise = createBrownNoise();
+  var noiseGain = context.createGain();
+  noiseGain.gain.value = 0.1;
+  noise.connect(noiseGain);
+  noiseGain.connect(context.destination);
+  */
+
+  score.forEach(function(chord, idx) {
+    if (!Array.isArray(chord))
+      chord = [chord];
+
+    chord.map(function(c) {
+      var start = context.currentTime + idx * spb;
+      var stop = context.currentTime + spb * idx + spb;
+
+      c.connect(graph);
+      c.start(start);
+      c.stop(stop);
+    });
+  });
+
+  if (repeat) {
+    setTimeout(function() {
+      score = play(createScore());
+      perform(score);
+    }, score.length / bpm * 60 * 1000);
+  }
 };
