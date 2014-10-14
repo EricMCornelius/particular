@@ -1,5 +1,7 @@
-window.onresize = init;
-window.onclick = onLeftClick;
+window.onresize = onResize;
+window.onmousedown = onMouseDown;
+window.onmouseup = onMouseUp;
+window.onmousemove = onMouseMove;
 window.oncontextmenu = onRightClick;
 window.onkeydown = set_fullscreen;
 
@@ -10,31 +12,109 @@ function set_fullscreen() {
 }
 
 var scale = {
-  x: 2,
-  y: 2
+  x: 1,
+  y: 1
+};
+
+var buttons = {
+  'LEFT': 0,
+  'MIDDLE': 1,
+  'RIGHT': 2
+};
+
+var start_position = null;
+var mouse_position = null;
+
+function onResize(evt) {
+  console.log(evt);
+}
+
+function onMouseDown(evt) {
+  var x = evt.x / window.innerWidth * width;
+  var y = height - evt.y / window.innerHeight * height;
+
+  switch (evt.button) {
+    case buttons.LEFT:
+      onLeftDown(x, y);
+      break;
+    case buttons.MIDDLE:
+      onMiddleDown(x, y);
+      break;
+    case buttons.RIGHT:
+      onRightDown(x, y);
+      break;
+    default: {
+
+    }
+  }
+}
+
+function onMouseUp(evt) {
+  var x = evt.x / window.innerWidth * width;
+  var y = height - evt.y / window.innerHeight * height;
+
+  switch (evt.button) {
+    case buttons.LEFT:
+      onLeftUp(x, y);
+      break;
+    case buttons.MIDDLE:
+      onMiddleUp(x, y);
+      break;
+    default: {
+
+    }
+  }
+}
+
+function onLeftDown(x, y) {
+  start_position = {x: x, y: y};
+}
+
+function onLeftUp(x, y) {
+  var vx = (x - start_position.x);
+  var vy = (y - start_position.y);
+  particle(start_position.x, start_position.y, vx, vy);
+  start_position = null;
+}
+
+function onMiddleDown(x, y) {
+  start_position = {x: x, y: y};
+}
+
+function onMiddleUp(x, y) {
+  wormhole(start_position.x, start_position.y, x, y);
+  start_position = null;
+}
+
+function onMouseMove(evt) {
+  var x = (evt.x / window.innerWidth) * width;
+  var y = height - (evt.y / window.innerHeight) * height;
+  mouse_position = {x: x, y: y};
+}
+
+function onRightDown(x, y) {
+  sink(x, y);
 }
 
 function onRightClick(evt) {
   evt.preventDefault();
-  sink(evt.x / scale.x, evt.y / scale.y);
-  set_fullscreen();
-}
-
-function onLeftClick(evt) {
-  console.log(evt.x, evt.y);
-  particle(evt.x / scale.x, evt.y / scale.y);
-  set_fullscreen();
 }
 
 var width = window.innerWidth / scale.x;
 var height = window.innerHeight / scale.y;
 var depth = 1000;
 
+var bounds = {
+  x: [0, width],
+  y: [0, height],
+  z: [1, depth]
+}
+
 var scene = new THREE.Scene();
 var stage = new THREE.Scene();
-var accum = new THREE.Scene();
+var overlay = new THREE.Scene();
 
-var renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
+var renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(width, height);
 renderer.domElement.style.width = '100%';
 renderer.domElement.style.height = '100%';
@@ -43,6 +123,7 @@ var container = document.getElementById('render_target');
 container.appendChild(renderer.domElement);
 
 var particles = [];
+var wormholes = [];
 var sinks = [];
 
 var palette = [
@@ -53,8 +134,11 @@ var materials = palette.map(function(color) {
   return new THREE.MeshBasicMaterial({color: color});
 });
 
-var particle_geometry = new THREE.CircleGeometry(5, 30);
-var sink_geometry = new THREE.CircleGeometry(10, 30);
+var particle_radius = 5;
+var sink_radius = 10;
+
+var particle_geometry = new THREE.CircleGeometry(particle_radius, 30);
+var sink_geometry = new THREE.CircleGeometry(sink_radius, 30);
 
 function rand(min, max) {
   return Math.random() * (max - min) + min;
@@ -68,38 +152,77 @@ function randMat() {
   return materials[int(rand(0, materials.length))];
 }
 
-function particle(x, y) {
+function bound(val, min, max) {
+  return Math.min(Math.max(val, min), max);
+}
+
+function particle(x, y, vx, vy) {
   var mat = randMat();
   var mesh = new THREE.Mesh(particle_geometry, mat);
-  mesh.position.x = x;
-  mesh.position.y = height - y;
+  particles.push({
+    position: {
+      x: x,
+      y: y
+    },
+    velocity: {
+      x: vx,
+      y: vy
+    },
+    mat: mat,
+    getMesh: function() {
+      var m = mesh.clone();
+      m.position.x = this.position.x;
+      m.position.y = this.position.y;
+      return m;
+    }
+  });
+}
+
+function wormhole(x1, y1, x2, y2) {
+  var radius_scale = rand(0.5, 2);
+  var mat = randMat();
+
+  var mesh = new THREE.Mesh(sink_geometry, mat);
+  mesh.position.x = x1;
+  mesh.position.y = y1;
   mesh.position.z = 1;
-  mesh.velocity = {x: rand(-3, 3), y: rand(-3, 3), z: rand(0, 5)};
+
+  mesh.radius = sink_radius * radius_scale;
+  mesh.scale.x = radius_scale;
+  mesh.scale.y = radius_scale;
+
+  var end_mesh = mesh.clone();
+  end_mesh.position.x = x2;
+  end_mesh.position.y = y2;
+
   scene.add(mesh);
-  particles.push(mesh);
+  scene.add(end_mesh);
+  wormholes.push({
+    start: mesh,
+    end: end_mesh,
+    radius: sink_radius * radius_scale,
+    active: true
+  });
 }
 
 function sink(x, y) {
+  var radius_scale = rand(0.5, 2);
   var mat = randMat();
+
   var mesh = new THREE.Mesh(sink_geometry, mat);
   mesh.position.x = x;
-  mesh.position.y = height - y;
+  mesh.position.y = y;
   mesh.position.z = 1;
+
+  mesh.radius = sink_radius * radius_scale;
+  mesh.mass = 10 * mesh.radius * mesh.radius;
+  mesh.scale.x = radius_scale;
+  mesh.scale.y = radius_scale;
   scene.add(mesh);
   sinks.push(mesh);
 }
 
 function init() {
-
-width = window.innerWidth / scale.x;
-height = window.innerHeight / scale.y;
-depth = 1000;
-
-var bounds = {
-  x: [0, width],
-  y: [0, height],
-  z: [1, depth]
-}
 
 var camera = new THREE.OrthographicCamera(0, width, height, 0, 0, 1000);
 camera.position.x = 0;
@@ -125,17 +248,6 @@ var uniforms = {
   }
 };
 
-var uniforms2 = {
-  tDiffuse: {
-    type: 't',
-    value: framebuffer
-  },
-  opacity: {
-    type: 'f',
-    value: 0.99
-  }
-};
-
 var materialScreen = new THREE.ShaderMaterial({
   uniforms: uniforms,
   vertexShader: document.getElementById('vertexShader').textContent,
@@ -143,12 +255,20 @@ var materialScreen = new THREE.ShaderMaterial({
   depthWrite: true
 });
 
-var materialAccum = new THREE.ShaderMaterial({
-  uniforms: uniforms2,
-  vertexShader: document.getElementById('vertexShader').textContent,
-  fragmentShader: document.getElementById('fragment_shader_accum').textContent,
-  depthWrite: true
+var lineMaterial = new THREE.LineDashedMaterial({
+  color: 0x33aaaa,
+  linewidth: 3,
+  gapSize: 10,
+  dashSize: 10
 });
+
+var lineGeometry = new THREE.Geometry();
+lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
+lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
+lineGeometry.computeLineDistances();
+
+var line = new THREE.Line(lineGeometry, lineMaterial);
+overlay.add(line);
 
 var plane = new THREE.PlaneGeometry(width, height);
 var quad = new THREE.Mesh(plane, materialScreen);
@@ -156,62 +276,138 @@ quad.position.x += width / 2;
 quad.position.y += height / 2;
 stage.add(quad);
 
-var plane2 = new THREE.PlaneGeometry(width, height);
-var quad2 = new THREE.Mesh(plane, materialScreen);
-quad2.position.x += width / 2;
-quad2.position.y += height / 2;
-accum.add(quad2);
-
 var loop_count = 0;
-function render() {
-  requestAnimationFrame(render);
+var last_time = 0;
+var steps = 80;
 
+var friction = 0.9975;
+var gravitation = 4000;
+var speed = 1;
+
+function render(time) {
+  requestAnimationFrame(render);
+  var delta = (time - last_time) / 1000;
+  last_time = time;
   ++loop_count;
 
-  particles.forEach(function(particle) {
-    var ax = 0;
-    var ay = 0;
+  var meshes = [];
+  var step = speed * delta * (1.0 / steps);
 
-    sinks.forEach(function(sink) {
-      // magnitude of acceleration = mass of sink * constant / distance squared
-      var dx = sink.position.x - particle.position.x;
-      var dy = sink.position.y - particle.position.y;
+  particles = particles.filter(function(particle) {
+    var last = null;
+    for (var i = 0; i < steps; ++i) {
+      var d_ax = 0;
+      var d_ay = 0;
 
-      var d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
-      var a = 1000 / d2;
-      var d = Math.sqrt(d2);
+      sinks.forEach(function(sink) {
+        var dx = sink.position.x - particle.position.x;
+        var dy = sink.position.y - particle.position.y;
 
-      ax += a * dx / d;
-      ay += a * dy / d;
-    });
+        if (Math.abs(dx) < sink.radius && Math.abs(dy) < sink.radius) {
+          particle.collided = sink;
+          return;
+        }
 
-    particle.velocity.x = 0.99 * (particle.velocity.x + ax);
-    particle.velocity.y = 0.99 * (particle.velocity.y + ay);
+        var d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
+        var a = gravitation * sink.mass / d2;
+        var d = Math.sqrt(d2);
 
-    ['x', 'y'].forEach(function(dim) {
-      var newPosition = particle.position[dim] + particle.velocity[dim];
-      if (newPosition < bounds[dim][0] || newPosition > bounds[dim][1])
-        particle.velocity[dim] = -particle.velocity[dim];
-      particle.position[dim] = newPosition;
-      particle.verticesNeedUpdate = true;
-    });
+        d_ax += a * dx / d;
+        d_ay += a * dy / d;
+      });
+
+      wormholes.forEach(function(wormhole) {
+        if (!wormhole.active) return;
+
+        var jump_to = null;
+        [wormhole.start, wormhole.end].forEach(function(point, idx) {
+          var dx = point.position.x - particle.position.x;
+          var dy = point.position.y - particle.position.y;
+
+          if (Math.abs(dx) < wormhole.radius && Math.abs(dy) < wormhole.radius) {
+            jump_to = (idx + 1) % 2;
+          }
+        });
+
+        if (jump_to !== null) {
+          var position = [wormhole.start, wormhole.end][jump_to].position;
+          particle.position.x = position.x;
+          particle.position.y = position.y;
+
+          wormhole.active = false;
+          setTimeout(function() {
+            wormhole.active = true;
+          }, 100);
+        }
+      });
+
+      if (particle.collided) {
+        return false;
+      }
+
+      var d_vx = step * d_ax;
+      var d_vy = step * d_ay;
+
+      particle.velocity.x = (1.0 - (1.0 - friction) / steps) * (particle.velocity.x + d_vx);
+      particle.velocity.y = (1.0 - (1.0 - friction) / steps) * (particle.velocity.y + d_vy);
+
+      particle.position.x = particle.position.x + step * particle.velocity.x;
+      particle.position.y = particle.position.y + step * particle.velocity.y;
+
+      if (particle.position.x < bounds.x[0] || particle.position.x > bounds.x[1]) {
+        particle.velocity.x = -particle.velocity.x;
+      }
+      if (particle.position.y < bounds.y[0] || particle.position.y > bounds.y[1]) {
+        particle.velocity.y = -particle.velocity.y;
+      }
+
+      if (!last || Math.abs(particle.position.x - last.position.x) > particle_radius / 2 || Math.abs(particle.position.y - last.position.y) > particle_radius / 2) {
+        var mesh = particle.getMesh();
+        meshes.push(mesh);
+        last = mesh;
+      }
+    }
+    return true;
   });
 
-  sinks.forEach(function(sink) {
-    sink.verticesNeedUpdate = true;
+  meshes.forEach(function(mesh) {
+    scene.add(mesh);
   });
 
-  renderer.clear();
+  // render new content into accumulator buffer
   renderer.render(scene, camera, framebuffer, false);
-  renderer.render(accum, camera, framebuffer2, true);
+
+  // render accumulator to screen with blurring
   renderer.render(stage, camera);
 
+  // render screen to new back-buffer
+  renderer.render(stage, camera, framebuffer2, true);
+
+  if (start_position) {
+    lineGeometry.vertices[0].x = start_position.x;
+    lineGeometry.vertices[0].y = start_position.y;
+    lineGeometry.vertices[1].x = mouse_position.x;
+    lineGeometry.vertices[1].y = mouse_position.y;
+
+    lineGeometry.computeLineDistances();
+    lineGeometry.lineDistancesNeedUpdate = true;
+
+    lineGeometry.verticesNeedUpdate = true;
+
+    // render overlay to screen
+    renderer.render(overlay, camera);
+  }
+
+  // swap buffers
   var a = framebuffer2;
   framebuffer2 = framebuffer;
   framebuffer = a;
 
   uniforms.tDiffuse.value = framebuffer;
-  uniforms2.tDiffuse.value = framebuffer;
+
+  meshes.forEach(function(mesh) {
+    scene.remove(mesh);
+  });
 }
 render();
 
@@ -744,7 +940,6 @@ function createPinkNoise() {
       b6 = white * 0.115926;
     }
   }
-  console.log(node);
   return node;
 }
 
@@ -760,7 +955,6 @@ function createBrownNoise() {
       output[i] *= 3.5; // (roughly) compensate for gain
     }
   };
-  console.log(node);
   return node;
 };
 

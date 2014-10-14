@@ -25,7 +25,6 @@ html, body {
   uniform float height;
 
   void main() {
-
     vec4 sum = vec4(0.0);
 
     sum += texture2D(tDiffuse, vec2(vUv.x - 1.0 * width, vUv.y - 1.0 * height)) * 1.0;
@@ -39,22 +38,8 @@ html, body {
     sum += texture2D(tDiffuse, vec2(vUv.x + 1.0 * width, vUv.y + 1.0 * height)) * 1.0;
 
     sum /= 16.0;
-    sum -= 0.001;
-    gl_FragColor = vec4(sum.rgb, 1.0);
-  }
-
-</script>
-
-<script id="fragment_shader_accum" type="x-shader/x-fragment">
-
-  uniform sampler2D tDiffuse;
-  varying vec2 vUv;
-  uniform float opacity;
-
-  void main() {
-    //gl_FragColor = vec3(1.0, 0, 0);
-    vec4 color = opacity * texture2D(tDiffuse, vUv) - 1.0;
-    gl_FragColor = color;
+    sum -= 0.005;
+    gl_FragColor = sum;
   }
 
 </script>
@@ -64,10 +49,8 @@ html, body {
   varying vec2 vUv;
 
   void main() {
-
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 
 </script>
@@ -78,23 +61,6 @@ html, body {
 <div id='render_target'></div>
 
 <script type='text/javascript' src='//cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/EffectComposer.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/ShaderPass.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/RenderPass.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/MaskPass.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/BloomPass.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/SavePass.js'></script>
-<script type='text/javascript' src='vendor/js/postprocessing/TexturePass.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/CopyShader.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/BlendShader.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/DotScreenShader.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/RGBShiftShader.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/ConvolutionShader.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/HorizontalBlurShader.js'></script>
-<script type='text/javascript' src='vendor/js/shaders/VerticalBlurShader.js'></script>
-
-<script type='text/javascript' src='js/BlurShader.js'></script>
-<script type='text/javascript' src='js/AdditiveShader.js'></script>
 <script type='text/javascript' src='js/main.js'></script>
 </body>
 <html>
