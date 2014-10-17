@@ -12,8 +12,8 @@ function set_fullscreen() {
 }
 
 var scale = {
-  x: 1,
-  y: 1
+  x: 1.5,
+  y: 1.5
 };
 
 var buttons = {
@@ -22,8 +22,15 @@ var buttons = {
   'RIGHT': 2
 };
 
+var objects = {
+  'PARTICLE': 0,
+  'SINK': 1,
+  'WORMHOLE': 2
+}
+
 var start_position = null;
 var mouse_position = null;
+var placing = null;
 
 function onResize(evt) {
   console.log(evt);
@@ -60,6 +67,9 @@ function onMouseUp(evt) {
     case buttons.MIDDLE:
       onMiddleUp(x, y);
       break;
+    case buttons.RIGHT:
+      onRightUp(x, y);
+      break;
     default: {
 
     }
@@ -68,6 +78,7 @@ function onMouseUp(evt) {
 
 function onLeftDown(x, y) {
   start_position = {x: x, y: y};
+  placing = objects.PARTICLE;
 }
 
 function onLeftUp(x, y) {
@@ -85,6 +96,7 @@ function onLeftUp(x, y) {
 
 function onMiddleDown(x, y) {
   start_position = {x: x, y: y};
+  placing = objects.WORMHOLE;
 }
 
 function onMiddleUp(x, y) {
@@ -92,14 +104,24 @@ function onMiddleUp(x, y) {
   start_position = null;
 }
 
+function onRightDown(x, y) {
+  start_position = {x: x, y: y};
+  placing = objects.SINK;
+}
+
+function onRightUp(x, y) {
+  var dx = Math.abs(mouse_position.x - start_position.x);
+  var dy = Math.abs(mouse_position.y - start_position.y);
+  var dist = Math.sqrt(dx * dx + dy * dy);
+
+  sink(start_position.x, start_position.y, dist);
+  start_position = null;
+}
+
 function onMouseMove(evt) {
   var x = (evt.x / window.innerWidth) * width;
   var y = height - (evt.y / window.innerHeight) * height;
   mouse_position = {x: x, y: y};
-}
-
-function onRightDown(x, y) {
-  sink(x, y);
 }
 
 function onRightClick(evt) {
@@ -120,6 +142,8 @@ var scene = new THREE.Scene();
 var stage = new THREE.Scene();
 var overlay = new THREE.Scene();
 
+var particle_texture = THREE.ImageUtils.loadTexture('textures/particle.png');
+
 var renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(width, height);
 renderer.domElement.style.width = '100%';
@@ -138,6 +162,7 @@ var palette = [
 
 var materials = palette.map(function(color) {
   return new THREE.MeshBasicMaterial({color: color});
+  //return new THREE.MeshBasicMaterial({color: color, map: particle_texture, transparent: true});
 });
 
 var particle_radius = 5;
@@ -213,8 +238,7 @@ function wormhole(x1, y1, x2, y2) {
   });
 }
 
-function sink(x, y) {
-  var radius_scale = rand(0.5, 2);
+function sink(x, y, r) {
   var mat = randMat();
 
   var mesh = new THREE.Mesh(sink_geometry, mat);
@@ -222,10 +246,10 @@ function sink(x, y) {
   mesh.position.y = y;
   mesh.position.z = 1;
 
-  mesh.radius = sink_radius * radius_scale;
+  mesh.radius = r;
   mesh.mass = 10 * mesh.radius * mesh.radius;
-  mesh.scale.x = radius_scale;
-  mesh.scale.y = radius_scale;
+  mesh.scale.x = mesh.radius / sink_radius;
+  mesh.scale.y = mesh.radius / sink_radius;
   scene.add(mesh);
   sinks.push(mesh);
 }
@@ -283,13 +307,14 @@ lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
 lineGeometry.computeLineDistances();
 
 var zoneGeometry = new THREE.Geometry();
-var segmentCount = 32, radius = 100;
+var zone_radius = 100;
+var segmentCount = 32;
 
 for (var i = 0; i <= segmentCount; i++) {
   var theta = (i / segmentCount) * Math.PI * 2;
   zoneGeometry.vertices.push(new THREE.Vector3(
-    Math.cos(theta) * radius,
-    Math.sin(theta) * radius,
+    Math.cos(theta) * zone_radius,
+    Math.sin(theta) * zone_radius,
     1)
   );
 }
@@ -298,6 +323,12 @@ zoneGeometry.computeLineDistances();
 var line = new THREE.Line(lineGeometry, lineMaterial);
 line.visible = false;
 overlay.add(line);
+
+var placer = new THREE.Line(zoneGeometry, zoneMaterial);
+placer.position.x = 0;
+placer.position.y = 0;
+placer.visible = false;
+overlay.add(placer);
 
 var zone = new THREE.Line(zoneGeometry, zoneMaterial);
 zone.position.x = width / 2;
@@ -341,17 +372,16 @@ function render(time) {
       sinks.forEach(function(sink) {
         var dx = sink.position.x - particle.position.x;
         var dy = sink.position.y - particle.position.y;
+        var d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
+        var d = Math.sqrt(d2);
 
-        if (Math.abs(dx) < sink.radius && Math.abs(dy) < sink.radius) {
+        if (d < sink.radius) {
           particle.collided = sink;
           perform(play(randomNote()));
           return;
         }
 
-        var d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
         var a = gravitation * sink.mass / d2;
-        var d = Math.sqrt(d2);
-
         d_ax += a * dx / d;
         d_ay += a * dy / d;
       });
@@ -381,9 +411,8 @@ function render(time) {
         }
       });
 
-      if (particle.collided) {
+      if (particle.collided)
         return false;
-      }
 
       var d_vx = step * d_ax;
       var d_vy = step * d_ay;
@@ -424,19 +453,36 @@ function render(time) {
   renderer.render(stage, camera, framebuffer2, true);
 
   if (start_position) {
-    line.visible = true;
-    lineGeometry.vertices[0].x = start_position.x;
-    lineGeometry.vertices[0].y = start_position.y;
-    lineGeometry.vertices[1].x = mouse_position.x;
-    lineGeometry.vertices[1].y = mouse_position.y;
+    switch (placing) {
+      case objects.PARTICLE:
+        line.visible = true;
+        lineGeometry.vertices[0].x = start_position.x;
+        lineGeometry.vertices[0].y = start_position.y;
+        lineGeometry.vertices[1].x = mouse_position.x;
+        lineGeometry.vertices[1].y = mouse_position.y;
 
-    lineGeometry.computeLineDistances();
-    lineGeometry.lineDistancesNeedUpdate = true;
+        lineGeometry.computeLineDistances();
+        lineGeometry.lineDistancesNeedUpdate = true;
 
-    lineGeometry.verticesNeedUpdate = true;
+        lineGeometry.verticesNeedUpdate = true;
+        break;
+      case objects.SINK:
+        placer.visible = true;
+        placer.position.x = start_position.x;
+        placer.position.y = start_position.y;
+        var dx = Math.abs(mouse_position.x - start_position.x);
+        var dy = Math.abs(mouse_position.y - start_position.y);
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        placer.scale.x = dist / zone_radius;
+        placer.scale.y = dist / zone_radius;
+        break;
+      case objects.WORMHOLE:
+        break;
+    }
   }
   else {
     line.visible = false;
+    placer.visible = false;
   }
 
   // render overlay to screen
