@@ -31,6 +31,7 @@ var objects = {
 var start_position = null;
 var mouse_position = null;
 var placing = null;
+var wormhole_start = null;
 
 function onResize(evt) {
   console.log(evt);
@@ -45,7 +46,6 @@ function onMouseDown(evt) {
       onLeftDown(x, y);
       break;
     case buttons.MIDDLE:
-      onMiddleDown(x, y);
       break;
     case buttons.RIGHT:
       onRightDown(x, y);
@@ -65,7 +65,6 @@ function onMouseUp(evt) {
       onLeftUp(x, y);
       break;
     case buttons.MIDDLE:
-      onMiddleUp(x, y);
       break;
     case buttons.RIGHT:
       onRightUp(x, y);
@@ -78,30 +77,39 @@ function onMouseUp(evt) {
 
 function onLeftDown(x, y) {
   start_position = {x: x, y: y};
-  placing = objects.PARTICLE;
+  var sink = checkCollision(x, y);
+  if (sink) {
+    placing = objects.WORMHOLE;
+    wormhole_start = sink;
+  }
+  else {
+    placing = objects.PARTICLE;
+  }
 }
 
 function onLeftUp(x, y) {
   var sx = start_position.x;
   var sy = start_position.y;
+
+  if (placing === objects.PARTICLE) {
+    var vx = (x - sx);
+    var vy = (y - sy);
+
+    setInterval(function() {
+      particle(sx, sy, vx, vy)
+    }, 1000);
+  }
+  else if (placing === objects.WORMHOLE) {
+    var sink = checkCollision(x, y);
+    if (sink) {
+      console.log('new wormhole:', wormhole_start, sink);
+      wormhole(wormhole_start, sink);
+    }
+  }
+
   start_position = null;
-
-  var vx = (x - sx);
-  var vy = (y - sy);
-
-  setInterval(function() {
-    particle(sx, sy, vx, vy)
-  }, 1000);
-}
-
-function onMiddleDown(x, y) {
-  start_position = {x: x, y: y};
-  placing = objects.WORMHOLE;
-}
-
-function onMiddleUp(x, y) {
-  wormhole(start_position.x, start_position.y, x, y);
-  start_position = null;
+  wormhole_start = null;
+  placing = null;
 }
 
 function onRightDown(x, y) {
@@ -156,17 +164,35 @@ var particles = [];
 var wormholes = [];
 var sinks = [];
 
+function checkCollision(x, y) {
+  var match = null;
+  var matched = sinks.some(function(sink, idx) {
+    match = idx;
+
+    var dx = sink.position.x - x;
+    var dy = sink.position.y - y;
+    var d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
+    var d = Math.sqrt(d2);
+
+    return (d < sink.radius);
+  });
+
+  return matched ? sinks[match] : null;
+}
+
 var palette = [
   0x0000ff, 0x00ff00, 0x00ffff, 0xff0000, 0xff00ff, 0xffff00
 ];
 
 var materials = palette.map(function(color) {
-  return new THREE.MeshBasicMaterial({color: color});
-  //return new THREE.MeshBasicMaterial({color: color, map: particle_texture, transparent: true});
+  //return new THREE.MeshBasicMaterial({color: color});
+  return new THREE.MeshBasicMaterial({color: color, map: particle_texture, transparent: true});
 });
 
 var particle_radius = 5;
 var sink_radius = 10;
+var min_sink_radius = 5;
+var max_sink_radius = 20;
 
 var particle_geometry = new THREE.CircleGeometry(particle_radius, 30);
 var sink_geometry = new THREE.CircleGeometry(sink_radius, 30);
@@ -211,40 +237,19 @@ function particle(x, y, vx, vy) {
   });
 }
 
-function wormhole(x1, y1, x2, y2) {
-  var radius_scale = rand(1, 2);
-  var mat = randMat();
-
-  var mesh = new THREE.Mesh(sink_geometry, mat);
-  mesh.position.x = x1;
-  mesh.position.y = y1;
-  mesh.position.z = 1;
-
-  mesh.radius = sink_radius * radius_scale;
-  mesh.scale.x = radius_scale;
-  mesh.scale.y = radius_scale;
-
-  var end_mesh = mesh.clone();
-  end_mesh.position.x = x2;
-  end_mesh.position.y = y2;
-
-  scene.add(mesh);
-  scene.add(end_mesh);
-  wormholes.push({
-    start: mesh,
-    end: end_mesh,
-    radius: sink_radius * radius_scale,
-    inactive: {}
-  });
+function wormhole(sink1, sink2) {
+  sink1.wormholes = (sink1.wormholes || []).concat(sink2);
 }
 
 function sink(x, y, r) {
+  r = bound(r, min_sink_radius, max_sink_radius);
   var mat = randMat();
 
   var mesh = new THREE.Mesh(sink_geometry, mat);
   mesh.position.x = x;
   mesh.position.y = y;
   mesh.position.z = 1;
+  mesh.note = randomNote();
 
   mesh.radius = r;
   mesh.mass = 10 * mesh.radius * mesh.radius;
@@ -306,33 +311,37 @@ lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
 lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
 lineGeometry.computeLineDistances();
 
-var zoneGeometry = new THREE.Geometry();
-var zone_radius = 100;
-var segmentCount = 32;
+function drawZone(x, y, r) {
+  var zone_geometry = new THREE.Geometry();
+  var zone_radius = r;
+  var segment_count = 32;
 
-for (var i = 0; i <= segmentCount; i++) {
-  var theta = (i / segmentCount) * Math.PI * 2;
-  zoneGeometry.vertices.push(new THREE.Vector3(
-    Math.cos(theta) * zone_radius,
-    Math.sin(theta) * zone_radius,
-    1)
-  );
+  for (var i = 0; i <= segment_count; i++) {
+    var theta = (i / segment_count) * Math.PI * 2;
+    zone_geometry.vertices.push(new THREE.Vector3(
+      Math.cos(theta) * zone_radius,
+      Math.sin(theta) * zone_radius,
+      1)
+    );
+  }
+  zone_geometry.computeLineDistances();
+
+  var mesh = new THREE.Line(zone_geometry, zoneMaterial);
+  mesh.position.x = x;
+  mesh.position.y = y;
+  mesh.radius = r;
+  return mesh;
 }
-zoneGeometry.computeLineDistances();
 
 var line = new THREE.Line(lineGeometry, lineMaterial);
 line.visible = false;
 overlay.add(line);
 
-var placer = new THREE.Line(zoneGeometry, zoneMaterial);
-placer.position.x = 0;
-placer.position.y = 0;
+var placer = drawZone(0, 0, 100);
 placer.visible = false;
 overlay.add(placer);
 
-var zone = new THREE.Line(zoneGeometry, zoneMaterial);
-zone.position.x = width / 2;
-zone.position.y = height / 2;
+var zone = drawZone(width / 2, height / 2, 100);
 overlay.add(zone);
 
 var plane = new THREE.PlaneGeometry(width, height);
@@ -375,44 +384,10 @@ function render(time) {
         var d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
         var d = Math.sqrt(d2);
 
-        if (d < sink.radius) {
-          particle.collided = sink;
-          perform(play(randomNote()));
-          return;
-        }
-
         var a = gravitation * sink.mass / d2;
         d_ax += a * dx / d;
         d_ay += a * dy / d;
       });
-
-      wormholes.forEach(function(wormhole) {
-        if (wormhole.inactive[particle.id]) return;
-
-        var jump_to = null;
-        [wormhole.start, wormhole.end].forEach(function(point, idx) {
-          var dx = point.position.x - particle.position.x;
-          var dy = point.position.y - particle.position.y;
-
-          if (Math.abs(dx) < wormhole.radius && Math.abs(dy) < wormhole.radius) {
-            jump_to = (idx + 1) % 2;
-          }
-        });
-
-        if (jump_to !== null) {
-          var position = [wormhole.start, wormhole.end][jump_to].position;
-          particle.position.x = position.x;
-          particle.position.y = position.y;
-
-          wormhole.inactive[particle.id] = true;
-          setTimeout(function() {
-            wormhole.inactive[particle.id] = false;
-          }, 100);
-        }
-      });
-
-      if (particle.collided)
-        return false;
 
       var d_vx = step * d_ax;
       var d_vy = step * d_ay;
@@ -428,6 +403,23 @@ function render(time) {
       }
       if (particle.position.y < bounds.y[0] || particle.position.y > bounds.y[1]) {
         particle.velocity.y = -particle.velocity.y;
+      }
+
+      var collided = checkCollision(particle.position.x, particle.position.y);
+      if (collided) {
+        if (collided.wormholes) {
+          var output = collided.wormholes[0];
+          var vx = particle.velocity.x;
+          var vy = particle.velocity.y;
+          var v = Math.sqrt(vx * vx + vy * vy);
+          particle.position.x = output.position.x + output.radius * vx / v;
+          particle.position.y = output.position.y + output.radius * vy / v;
+        }
+        else {
+          particle.collided = collided;
+          perform(play(collided.note));
+          return false;
+        }
       }
 
       if (!last || Math.abs(particle.position.x - last.position.x) > particle_radius / 2 || Math.abs(particle.position.y - last.position.y) > particle_radius / 2) {
@@ -455,6 +447,7 @@ function render(time) {
   if (start_position) {
     switch (placing) {
       case objects.PARTICLE:
+      case objects.WORMHOLE:
         line.visible = true;
         lineGeometry.vertices[0].x = start_position.x;
         lineGeometry.vertices[0].y = start_position.y;
@@ -467,16 +460,22 @@ function render(time) {
         lineGeometry.verticesNeedUpdate = true;
         break;
       case objects.SINK:
-        placer.visible = true;
         placer.position.x = start_position.x;
         placer.position.y = start_position.y;
         var dx = Math.abs(mouse_position.x - start_position.x);
         var dy = Math.abs(mouse_position.y - start_position.y);
-        var dist = Math.sqrt(dx * dx + dy * dy);
-        placer.scale.x = dist / zone_radius;
-        placer.scale.y = dist / zone_radius;
-        break;
-      case objects.WORMHOLE:
+        var dist = bound(Math.sqrt(dx * dx + dy * dy), min_sink_radius, max_sink_radius);
+
+        if (Math.abs(dist - placer.radius) > 5) {
+          overlay.remove(placer);
+          placer = drawZone(start_position.x, start_position.y, dist);
+          overlay.add(placer);
+        }
+        else {
+          placer.visible = true;
+          placer.scale.x = dist / placer.radius;
+          placer.scale.y = dist / placer.radius;
+        }
         break;
     }
   }
