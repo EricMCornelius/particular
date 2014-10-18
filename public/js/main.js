@@ -191,8 +191,8 @@ var materials = palette.map(function(color) {
 
 var particle_radius = 5;
 var sink_radius = 10;
-var min_sink_radius = 5;
-var max_sink_radius = 20;
+var min_sink_radius = 10;
+var max_sink_radius = 30;
 
 var particle_geometry = new THREE.CircleGeometry(particle_radius, 30);
 var sink_geometry = new THREE.CircleGeometry(sink_radius, 30);
@@ -244,17 +244,45 @@ function wormhole(sink1, sink2) {
 function sink(x, y, r) {
   r = bound(r, min_sink_radius, max_sink_radius);
   var mat = randMat();
+  var scale = octave_range(pentatonic_minor(440), 2, 1);
 
   var mesh = new THREE.Mesh(sink_geometry, mat);
   mesh.position.x = x;
   mesh.position.y = y;
   mesh.position.z = 1;
-  mesh.note = randomNote();
+  mesh.mat = mat;
+  mesh.idx = 0;
 
   mesh.radius = r;
   mesh.mass = 10 * mesh.radius * mesh.radius;
   mesh.scale.x = mesh.radius / sink_radius;
   mesh.scale.y = mesh.radius / sink_radius;
+
+  mesh.shrink = function() {
+    if (mesh.idx === scale.length - 1) return;
+
+    amount = mesh.radius / (scale.length - mesh.idx);
+    mesh.radius -= amount;
+    mesh.mass = 10 * mesh.radius * mesh.radius;
+    mesh.scale.x = mesh.radius / sink_radius;
+    mesh.scale.y = mesh.radius / sink_radius;
+    ++mesh.idx;
+  }
+
+  mesh.grow = function() {
+    if (mesh.idx === 0) return;
+
+    --mesh.idx;
+    mesh.radius = mesh.radius * (scale.length - mesh.idx) / (scale.length - mesh.idx - 1);
+    mesh.mass = 10 * mesh.radius * mesh.radius;
+    mesh.scale.x = mesh.radius / sink_radius;
+    mesh.scale.y = mesh.radius / sink_radius;
+  }
+
+  mesh.play = function() {
+    perform([play(scale[mesh.idx])]);
+  }
+
   scene.add(mesh);
   sinks.push(mesh);
 }
@@ -342,6 +370,7 @@ placer.visible = false;
 overlay.add(placer);
 
 var zone = drawZone(width / 2, height / 2, 100);
+zone.visible = false;
 overlay.add(zone);
 
 var plane = new THREE.PlaneGeometry(width, height);
@@ -416,8 +445,12 @@ function render(time) {
           particle.position.y = output.position.y + output.radius * vy / v;
         }
         else {
-          particle.collided = collided;
-          perform(play(collided.note));
+          if (collided.mat === particle.mat)
+            collided.shrink();
+          else
+            collided.grow();
+          collided.play();
+
           return false;
         }
       }
@@ -895,8 +928,19 @@ function randomNote() {
     window[key] = notes[key];
   }
 
-  var scale = pentatonic_minor(C);
+  var scale = octave_range(pentatonic_minor(C));
   return [scale[int(rand(0, scale.length))]];
+}
+
+function octave_range(scale, below, above) {
+  below = below || 0;
+  above = above || 0;
+
+  var notes = [];
+  for (var i = -below; i <= above; ++i) {
+    notes = notes.concat(octave(scale, i));
+  }
+  return notes;
 }
 
 function createScore() {
@@ -904,7 +948,7 @@ function createScore() {
     window[key] = notes[key];
   }
 
-  var scale = aug(C);
+  var scale = octave_range(aug(C));
 
   var score = [];
   for (var i = 0; i < 100; ++i) {
