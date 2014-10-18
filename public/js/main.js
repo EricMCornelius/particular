@@ -244,7 +244,6 @@ function wormhole(sink1, sink2) {
 function sink(x, y, r) {
   r = bound(r, min_sink_radius, max_sink_radius);
   var mat = randMat();
-  var scale = octave_range(pentatonic_minor(440), 2, 1);
 
   var mesh = new THREE.Mesh(sink_geometry, mat);
   mesh.position.x = x;
@@ -254,6 +253,13 @@ function sink(x, y, r) {
   mesh.idx = 0;
 
   mesh.radius = r;
+  mesh.max_radius = r;
+  mesh.min_radius = 0;
+
+  var scale = octave_range(pentatonic_minor(440), 2, 1);
+  var num_notes = Math.floor(scale.length * (1.0 - (r / max_sink_radius)));
+  scale = scale.slice(num_notes);
+
   mesh.mass = 10 * mesh.radius * mesh.radius;
   mesh.scale.x = mesh.radius / sink_radius;
   mesh.scale.y = mesh.radius / sink_radius;
