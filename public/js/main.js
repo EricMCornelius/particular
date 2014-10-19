@@ -1,20 +1,38 @@
+var scale = {
+  x: 1.5,
+  y: 1.5
+};
+
+var width = window.innerWidth / scale.x;
+var height = window.innerHeight / scale.y;
+var depth = 1000;
+
+var bounds = {
+  x: [0, width],
+  y: [0, height],
+  z: [1, depth]
+}
+
+var renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(width, height);
+renderer.domElement.style.width = '100%';
+renderer.domElement.style.height = '100%';
+renderer.autoClear = false;
+var container = document.getElementById('render_target');
+container.appendChild(renderer.domElement);
+
 window.onresize = onResize;
-window.onmousedown = onMouseDown;
-window.onmouseup = onMouseUp;
-window.onmousemove = onMouseMove;
-window.oncontextmenu = onRightClick;
-window.onkeydown = set_fullscreen;
+container.onmousedown = onMouseDown;
+container.onmouseup = onMouseUp;
+container.onmousemove = onMouseMove;
+container.oncontextmenu = onRightClick;
+container.onkeydown = set_fullscreen;
 
 var fullscreen_mode = false;
 function set_fullscreen() {
   if (fullscreen_mode && !document.fullscreen)
     container.webkitRequestFullscreen();
 }
-
-var scale = {
-  x: 1.5,
-  y: 1.5
-};
 
 var buttons = {
   'LEFT': 0,
@@ -136,29 +154,11 @@ function onRightClick(evt) {
   evt.preventDefault();
 }
 
-var width = window.innerWidth / scale.x;
-var height = window.innerHeight / scale.y;
-var depth = 1000;
-
-var bounds = {
-  x: [0, width],
-  y: [0, height],
-  z: [1, depth]
-}
-
 var scene = new THREE.Scene();
 var stage = new THREE.Scene();
 var overlay = new THREE.Scene();
 
 var particle_texture = THREE.ImageUtils.loadTexture('textures/particle.png');
-
-var renderer = new THREE.WebGLRenderer({antialias: true});
-renderer.setSize(width, height);
-renderer.domElement.style.width = '100%';
-renderer.domElement.style.height = '100%';
-renderer.autoClear = false;
-var container = document.getElementById('render_target');
-container.appendChild(renderer.domElement);
 
 var particles = [];
 var wormholes = [];
@@ -183,6 +183,8 @@ function checkCollision(x, y) {
 var palette = [
   0x0000ff, 0x00ff00, 0x00ffff, 0xff0000, 0xff00ff, 0xffff00
 ];
+
+var palette = [0xffffff];
 
 var materials = palette.map(function(color) {
   //return new THREE.MeshBasicMaterial({color: color});
@@ -256,7 +258,8 @@ function sink(x, y, r) {
   mesh.max_radius = r;
   mesh.min_radius = 0;
 
-  var scale = octave_range(pentatonic_minor(440), 2, 1);
+  //var scale = octave_range(pentatonic_minor(440), 2, 1);
+  var scale = arpeggio(octave_range(minor(440), 2, 1));
   var num_notes = Math.floor(scale.length * (1.0 - (r / max_sink_radius)));
   scale = scale.slice(num_notes);
 
@@ -265,7 +268,7 @@ function sink(x, y, r) {
   mesh.scale.y = mesh.radius / sink_radius;
 
   mesh.shrink = function() {
-    if (mesh.idx === scale.length - 1) return;
+    if (mesh.idx === scale.length) return;
 
     amount = mesh.radius / (scale.length - mesh.idx);
     mesh.radius -= amount;
@@ -406,6 +409,7 @@ function render(time) {
 
   var meshes = [];
   var step = speed * 16 / 1000 * (1.0 / steps);
+  var removed = [];
 
   particles = particles.filter(function(particle) {
     var last = null;
@@ -451,11 +455,14 @@ function render(time) {
           particle.position.y = output.position.y + output.radius * vy / v;
         }
         else {
+          collided.play();
           if (collided.mat === particle.mat)
             collided.shrink();
           else
             collided.grow();
-          collided.play();
+
+          if (collided.radius < 1)
+            removed.push(collided);
 
           return false;
         }
@@ -472,6 +479,15 @@ function render(time) {
 
   meshes.forEach(function(mesh) {
     scene.add(mesh);
+  });
+
+  var ids = {};
+  removed.forEach(function(mesh) {
+    ids[mesh.id] = true;
+    scene.remove(mesh);
+  });
+  sinks = sinks.filter(function(sink) {
+    return !ids[sink.id];
   });
 
   // render new content into accumulator buffer
@@ -947,6 +963,13 @@ function octave_range(scale, below, above) {
     notes = notes.concat(octave(scale, i));
   }
   return notes;
+}
+
+function arpeggio(scale) {
+  return scale.filter(function(note, idx) {
+    var offset = idx % 7;
+    return [1, 3, 5].indexOf(offset + 1) !== -1;
+  });
 }
 
 function createScore() {

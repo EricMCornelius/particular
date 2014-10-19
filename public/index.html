@@ -14,6 +14,50 @@ html, body {
   margin: 0px;
 }
 
+#control_bar {
+  position: fixed;
+  bottom: 0px;
+  width:  100%;
+  height: 10px;
+  background-color: transparent;
+  transition: height 1s;
+}
+
+#control_bar:hover {
+  height: 50px;
+  padding: 0px;
+}
+
+.button {
+  display: inline-block;
+  width: 80px;
+  height: 100%;
+  bottom: 0px;
+  background-color: transparent;
+
+  font-weight: bold;
+  font-size: 2em;
+  font-family: 'arial';
+  text-align: center;
+  vertical-align: middle;
+  line-height: 50px;
+}
+
+.button:hover {
+  cursor: pointer;
+}
+
+.blue {
+  color: #55aaff;
+  text-shadow: 0 0 5px #55aaff, 0 0 10px #55aaff, 0 0 15px #55aaff, 0 0 20px #0000de, 0 0 50px #0000de, 0 0 70px #0000de, 0 0 100px #0000de;
+  transition: text-shadow 0.25s, color 0.25s;
+}
+
+.blue:hover {
+  color: #77ccff;
+  text-shadow: 0 0 5px #77ccff, 0 0 10px #77ccff, 0 0 15px #77ccff, 0 0 20px #0000de, 0 0 50px #0000de, 0 0 60px #0000de, 0 0 70px #0000de, 0 0 90px #0000de, 0 0 100px #0000de, 0 0 120px #0000de;
+}
+
 </style>
 
 <script id="fragment_shader_screen" type="x-shader/x-fragment">
@@ -59,6 +103,10 @@ html, body {
 </head>
 <body>
 <div id='render_target'></div>
+<div id='control_bar'>
+  <span class='blue button'>Fire</span>
+  <span class='blue button'>Place</span>
+</div>
 
 <script type='text/javascript' src='//cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js'></script>
 <script type='text/javascript' src='js/main.js'></script>
