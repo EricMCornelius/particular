@@ -43,6 +43,15 @@ html, body {
   line-height: 50px;
 }
 
+.noselect {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 .button:hover {
   cursor: pointer;
 }
@@ -56,6 +65,17 @@ html, body {
 .blue:hover {
   color: #77ccff;
   text-shadow: 0 0 5px #77ccff, 0 0 10px #77ccff, 0 0 15px #77ccff, 0 0 20px #0000de, 0 0 50px #0000de, 0 0 60px #0000de, 0 0 70px #0000de, 0 0 90px #0000de, 0 0 100px #0000de, 0 0 120px #0000de;
+}
+
+.red {
+  color: #ff55aa;
+  text-shadow: 0 0 5px #ff55aa, 0 0 10px #ff55aa, 0 0 15px #ff55aa, 0 0 20px #de0000, 0 0 50px #de0000, 0 0 70px #de0000, 0 0 100px #de0000;
+  transition: text-shadow 0.25s, color 0.25s;
+}
+
+.red:hover {
+  color: #ff77cc;
+  text-shadow: 0 0 5px #ff77cc, 0 0 10px #ff77cc, 0 0 15px #ff77cc, 0 0 20px #de0000, 0 0 50px #de0000, 0 0 60px #de0000, 0 0 70px #de0000, 0 0 90px #de0000, 0 0 100px #de0000, 0 0 120px #de0000;
 }
 
 </style>
@@ -102,13 +122,14 @@ html, body {
 
 </head>
 <body>
-<div id='render_target'></div>
-<div id='control_bar'>
-  <span class='blue button'>Fire</span>
-  <span class='blue button'>Place</span>
+<div id='render_target' class='noselect'></div>
+<div id='control_bar' class='noselect'>
+  <span class='noselect blue button'>Fire</span>
+  <span class='noselect red button'>Place</span>
 </div>
 
 <script type='text/javascript' src='//cdnjs.cloudflare.com/ajax/libs/three.js/r68/three.js'></script>
+<script type='text/javascript' src='//cdnjs.cloudflare.com/ajax/libs/d3/3.4.13/d3.min.js'></script>
 <script type='text/javascript' src='js/main.js'></script>
 </body>
 <html>

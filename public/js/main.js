@@ -22,11 +22,18 @@ var container = document.getElementById('render_target');
 container.appendChild(renderer.domElement);
 
 window.onresize = onResize;
+window.onkeydown = onKeyDown;
 container.onmousedown = onMouseDown;
 container.onmouseup = onMouseUp;
 container.onmousemove = onMouseMove;
 container.oncontextmenu = onRightClick;
-container.onkeydown = set_fullscreen;
+
+d3.selectAll('.button')
+  .on('click', onButtonClick);
+
+function onButtonClick(evt) {
+  console.log('click:', d3.event);
+}
 
 var fullscreen_mode = false;
 function set_fullscreen() {
@@ -52,6 +59,10 @@ var placing = null;
 var wormhole_start = null;
 
 function onResize(evt) {
+  console.log(evt);
+}
+
+function onKeyDown(evt) {
   console.log(evt);
 }
 
