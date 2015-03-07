@@ -638,13 +638,13 @@ function envelope(adsr, duration) {
     start: function(time) {
       start = time;
       env.gain.value = 0.0;
-      var dur = duration || stop - start;
+      var dur = duration || Math.abs(stop - start);
       env.gain.setValueCurveAtTime(buf, start, dur);
     },
     stop: function(time) {
       stop = time;
       env.gain.value = 0.0;
-      var dur = duration || stop - start;
+      var dur = duration || Math.abs(stop - start);
       env.gain.setValueCurveAtTime(buf, start, dur);
     },
     connect: function(node) {
@@ -754,18 +754,20 @@ function pluck(note) {
       sources.forEach(function(s) {
         s.start(time);
       });
-      f1.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
-      f2.frequency.setValueCurveAtTime(filter_envelope2, start, stop - start);
-      f3.frequency.setValueCurveAtTime(filter_envelope3, start, stop - start);
+      var delta = Math.abs(stop - start);
+      f1.frequency.setValueCurveAtTime(filter_envelope, start, delta);
+      f2.frequency.setValueCurveAtTime(filter_envelope2, start, delta);
+      f3.frequency.setValueCurveAtTime(filter_envelope3, start, delta);
     },
     stop: function(time) {
       stop = time;
       sources.forEach(function(s) {
         s.stop(time);
       });
-      f1.frequency.setValueCurveAtTime(filter_envelope, start, stop - start);
-      f2.frequency.setValueCurveAtTime(filter_envelope2, start, stop - start);
-      f3.frequency.setValueCurveAtTime(filter_envelope3, start, stop - start);
+      var delta = Math.abs(stop - start);
+      f1.frequency.setValueCurveAtTime(filter_envelope, start, delta);
+      f2.frequency.setValueCurveAtTime(filter_envelope2, start, delta);
+      f3.frequency.setValueCurveAtTime(filter_envelope3, start, delta);
     },
     connect: function(node) {
       mg.connect(node);
