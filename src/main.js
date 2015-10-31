@@ -13,9 +13,9 @@ let bounds = {
   x: [0, width],
   y: [0, height],
   z: [1, depth]
-};
+}
 
-let renderer = new THREE.WebGLRenderer({ antialias: true });
+let renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(width, height);
 renderer.domElement.style.width = '100%';
 renderer.domElement.style.height = '100%';
@@ -30,7 +30,8 @@ container.onmouseup = onMouseUp;
 container.onmousemove = onMouseMove;
 container.oncontextmenu = onRightClick;
 
-d3.selectAll('.button').on('click', onButtonClick);
+d3.selectAll('.button')
+  .on('click', onButtonClick);
 
 function onButtonClick(evt) {
   console.log('click:', d3.event);
@@ -38,7 +39,8 @@ function onButtonClick(evt) {
 
 let fullscreen_mode = false;
 function set_fullscreen() {
-  if (fullscreen_mode && !document.fullscreen) container.webkitRequestFullscreen();
+  if (fullscreen_mode && !document.fullscreen)
+    container.webkitRequestFullscreen();
 }
 
 const buttons = {
@@ -51,7 +53,7 @@ const objects = {
   'PARTICLE': 0,
   'SINK': 1,
   'WORMHOLE': 2
-};
+}
 
 let start_position = null;
 let mouse_position = null;
@@ -79,8 +81,9 @@ function onMouseDown(evt) {
     case buttons.RIGHT:
       onRightDown(x, y);
       break;
-    default:
-      {}
+    default: {
+
+    }
   }
 }
 
@@ -97,18 +100,20 @@ function onMouseUp(evt) {
     case buttons.RIGHT:
       onRightUp(x, y);
       break;
-    default:
-      {}
+    default: {
+
+    }
   }
 }
 
 function onLeftDown(x, y) {
-  start_position = { x: x, y: y };
+  start_position = {x: x, y: y};
   let sink = checkCollision(x, y);
   if (sink) {
     placing = objects.WORMHOLE;
     wormhole_start = sink;
-  } else {
+  }
+  else {
     placing = objects.PARTICLE;
   }
 }
@@ -118,13 +123,14 @@ function onLeftUp(x, y) {
   let sy = start_position.y;
 
   if (placing === objects.PARTICLE) {
-    let vx = x - sx;
-    let vy = y - sy;
+    let vx = (x - sx);
+    let vy = (y - sy);
 
-    setInterval(function () {
-      particle(sx, sy, vx, vy);
+    setInterval(function() {
+      particle(sx, sy, vx, vy)
     }, 1000);
-  } else if (placing === objects.WORMHOLE) {
+  }
+  else if (placing === objects.WORMHOLE) {
     let sink = checkCollision(x, y);
     if (sink) {
       console.log('new wormhole:', wormhole_start, sink);
@@ -138,7 +144,7 @@ function onLeftUp(x, y) {
 }
 
 function onRightDown(x, y) {
-  start_position = { x: x, y: y };
+  start_position = {x: x, y: y};
   placing = objects.SINK;
 }
 
@@ -152,9 +158,9 @@ function onRightUp(x, y) {
 }
 
 function onMouseMove(evt) {
-  let x = evt.x / window.innerWidth * width;
-  let y = height - evt.y / window.innerHeight * height;
-  mouse_position = { x: x, y: y };
+  let x = (evt.x / window.innerWidth) * width;
+  let y = height - (evt.y / window.innerHeight) * height;
+  mouse_position = {x: x, y: y};
 }
 
 function onRightClick(evt) {
@@ -173,7 +179,7 @@ let sinks = [];
 
 function checkCollision(x, y) {
   let match = null;
-  let matched = sinks.some(function (sink, idx) {
+  let matched = sinks.some(function(sink, idx) {
     match = idx;
 
     let dx = sink.position.x - x;
@@ -181,18 +187,20 @@ function checkCollision(x, y) {
     let d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
     let d = Math.sqrt(d2);
 
-    return d < sink.radius;
+    return (d < sink.radius);
   });
 
   return matched ? sinks[match] : null;
 }
 
-let palette = [0x0000ff, 0x00ff00, 0x00ffff, 0xff0000, 0xff00ff, 0xffff00];
+let palette = [
+  0x0000ff, 0x00ff00, 0x00ffff, 0xff0000, 0xff00ff, 0xffff00
+];
 
 palette = [0xffffff, 0x00aadd];
 
-let materials = palette.map(function (color) {
-  return new THREE.MeshBasicMaterial({ color: color, map: particle_texture, transparent: true });
+let materials = palette.map(function(color) {
+  return new THREE.MeshBasicMaterial({color: color, map: particle_texture, transparent: true});
 });
 
 let particle_radius = 5;
@@ -234,7 +242,7 @@ function particle(x, y, vx, vy) {
       y: vy
     },
     mat: mat,
-    getMesh: function () {
+    getMesh: function() {
       let m = mesh.clone();
       m.position.x = this.position.x;
       m.position.y = this.position.y;
@@ -264,14 +272,14 @@ function sink(x, y, r) {
 
   //let scale = octave_range(pentatonic_minor(440), 2, 1);
   let scale = arpeggio(octave_range(minor(440), 2, 1));
-  let num_notes = Math.floor(scale.length * (1.0 - r / max_sink_radius));
+  let num_notes = Math.floor(scale.length * (1.0 - (r / max_sink_radius)));
   scale = scale.slice(num_notes);
 
   mesh.mass = 10 * mesh.radius * mesh.radius;
   mesh.scale.x = mesh.radius / sink_radius;
   mesh.scale.y = mesh.radius / sink_radius;
 
-  mesh.shrink = function () {
+  mesh.shrink = function() {
     if (mesh.idx === scale.length) return;
 
     let amount = mesh.radius / (scale.length - mesh.idx);
@@ -280,9 +288,9 @@ function sink(x, y, r) {
     mesh.scale.x = mesh.radius / sink_radius;
     mesh.scale.y = mesh.radius / sink_radius;
     ++mesh.idx;
-  };
+  }
 
-  mesh.grow = function () {
+  mesh.grow = function() {
     if (mesh.idx === 0) return;
 
     --mesh.idx;
@@ -290,11 +298,11 @@ function sink(x, y, r) {
     mesh.mass = 10 * mesh.radius * mesh.radius;
     mesh.scale.x = mesh.radius / sink_radius;
     mesh.scale.y = mesh.radius / sink_radius;
-  };
+  }
 
-  mesh.play = function () {
+  mesh.play = function() {
     perform([play(scale[mesh.idx])]);
-  };
+  }
 
   scene.add(mesh);
   sinks.push(mesh);
@@ -302,250 +310,263 @@ function sink(x, y, r) {
 
 function init() {
 
-  let camera = new THREE.OrthographicCamera(0, width, height, 0, 0, 1000);
-  camera.position.x = 0;
-  camera.position.y = 0;
-  camera.position.z = 1000;
+let camera = new THREE.OrthographicCamera(0, width, height, 0, 0, 1000);
+camera.position.x = 0;
+camera.position.y = 0;
+camera.position.z =  1000;
 
-  let parameters = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat, stencilBuffer: false, depthBuffer: true };
-  let framebuffer = new THREE.WebGLRenderTarget(width, height, parameters);
-  let framebuffer2 = new THREE.WebGLRenderTarget(width, height, parameters);
+let parameters = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat, stencilBuffer: false, depthBuffer: true };
+let framebuffer = new THREE.WebGLRenderTarget(width, height, parameters);
+let framebuffer2 = new THREE.WebGLRenderTarget(width, height, parameters);
 
-  let uniforms = {
-    tDiffuse: {
-      type: 't',
-      value: framebuffer
-    },
-    width: {
-      type: 'f',
-      value: 1.0 / width
-    },
-    height: {
-      type: 'f',
-      value: 1.0 / height
-    }
-  };
-
-  let materialScreen = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: document.getElementById('vertexShader').textContent,
-    fragmentShader: document.getElementById('fragment_shader_screen').textContent,
-    depthWrite: true
-  });
-
-  let lineMaterial = new THREE.LineDashedMaterial({
-    color: 0x33aaaa,
-    linewidth: 3,
-    gapSize: 10,
-    dashSize: 10
-  });
-
-  let zoneMaterial = new THREE.LineDashedMaterial({
-    color: 0xaa33aa,
-    linewidth: 5,
-    gapSize: 5,
-    dashSize: 5
-  });
-
-  let lineGeometry = new THREE.Geometry();
-  lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
-  lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
-  lineGeometry.computeLineDistances();
-
-  function drawZone(x, y, r) {
-    let zone_geometry = new THREE.Geometry();
-    let zone_radius = r;
-    let segment_count = 32;
-
-    for (let i = 0; i <= segment_count; i++) {
-      let theta = i / segment_count * Math.PI * 2;
-      zone_geometry.vertices.push(new THREE.Vector3(Math.cos(theta) * zone_radius, Math.sin(theta) * zone_radius, 1));
-    }
-    zone_geometry.computeLineDistances();
-
-    let mesh = new THREE.Line(zone_geometry, zoneMaterial);
-    mesh.position.x = x;
-    mesh.position.y = y;
-    mesh.radius = r;
-    return mesh;
+let uniforms = {
+  tDiffuse: {
+    type: 't',
+    value: framebuffer
+  },
+  width: {
+    type: 'f',
+    value: 1.0 / width
+  },
+  height: {
+    type: 'f',
+    value: 1.0 / height
   }
+};
 
-  let line = new THREE.Line(lineGeometry, lineMaterial);
-  line.visible = false;
-  overlay.add(line);
+let materialScreen = new THREE.ShaderMaterial({
+  uniforms: uniforms,
+  vertexShader: document.getElementById('vertexShader').textContent,
+  fragmentShader: document.getElementById('fragment_shader_screen').textContent,
+  depthWrite: true
+});
 
-  let placer = drawZone(0, 0, 100);
-  placer.visible = false;
-  overlay.add(placer);
+let lineMaterial = new THREE.LineDashedMaterial({
+  color: 0x33aaaa,
+  linewidth: 3,
+  gapSize: 10,
+  dashSize: 10
+});
 
-  let zone = drawZone(width / 2, height / 2, 100);
-  zone.visible = false;
-  overlay.add(zone);
+let zoneMaterial = new THREE.LineDashedMaterial({
+  color: 0xaa33aa,
+  linewidth: 5,
+  gapSize: 5,
+  dashSize: 5
+});
 
-  let plane = new THREE.PlaneGeometry(width, height);
-  let quad = new THREE.Mesh(plane, materialScreen);
-  quad.position.x += width / 2;
-  quad.position.y += height / 2;
-  stage.add(quad);
+let lineGeometry = new THREE.Geometry();
+lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
+lineGeometry.vertices.push(new THREE.Vector3(0, 0, 1));
+lineGeometry.computeLineDistances();
 
-  let loop_count = 0;
-  let last_time = 0;
-  let cumulative_time = 0;
-  let steps = 10;
+function drawZone(x, y, r) {
+  let zone_geometry = new THREE.Geometry();
+  let zone_radius = r;
+  let segment_count = 32;
 
-  let friction = 0.9975;
-  let gravitation = 4000;
-  let speed = 1;
+  for (let i = 0; i <= segment_count; i++) {
+    let theta = (i / segment_count) * Math.PI * 2;
+    zone_geometry.vertices.push(new THREE.Vector3(
+      Math.cos(theta) * zone_radius,
+      Math.sin(theta) * zone_radius,
+      1)
+    );
+  }
+  zone_geometry.computeLineDistances();
 
-  function render(time) {
-    requestAnimationFrame(render);
-    cumulative_time += time - last_time;
-    last_time = time;
+  let mesh = new THREE.Line(zone_geometry, zoneMaterial);
+  mesh.position.x = x;
+  mesh.position.y = y;
+  mesh.radius = r;
+  return mesh;
+}
 
-    if (cumulative_time < 16) return;
-    cumulative_time -= 16;
-    ++loop_count;
+let line = new THREE.Line(lineGeometry, lineMaterial);
+line.visible = false;
+overlay.add(line);
 
-    let meshes = [];
-    let step = speed * 16 / 1000 * (1.0 / steps);
-    let removed = [];
+let placer = drawZone(0, 0, 100);
+placer.visible = false;
+overlay.add(placer);
 
-    particles = particles.filter(function (particle) {
-      let last = null;
-      for (let i = 0; i < steps; ++i) {
-        let d_ax = 0;
-        let d_ay = 0;
+let zone = drawZone(width / 2, height / 2, 100);
+zone.visible = false;
+overlay.add(zone);
 
-        sinks.forEach(function (sink) {
-          let dx = sink.position.x - particle.position.x;
-          let dy = sink.position.y - particle.position.y;
-          let d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
-          let d = Math.sqrt(d2);
+let plane = new THREE.PlaneGeometry(width, height);
+let quad = new THREE.Mesh(plane, materialScreen);
+quad.position.x += width / 2;
+quad.position.y += height / 2;
+stage.add(quad);
 
-          let a = gravitation * sink.mass / d2;
-          d_ax += a * dx / d;
-          d_ay += a * dy / d;
-        });
+let loop_count = 0;
+let last_time = 0;
+let cumulative_time = 0;
+let steps = 10;
 
-        let d_vx = step * d_ax;
-        let d_vy = step * d_ay;
+let friction = 0.9975;
+let gravitation = 4000;
+let speed = 1;
 
-        particle.velocity.x = (1.0 - (1.0 - friction) / steps) * (particle.velocity.x + d_vx);
-        particle.velocity.y = (1.0 - (1.0 - friction) / steps) * (particle.velocity.y + d_vy);
+function render(time) {
+  requestAnimationFrame(render);
+  cumulative_time += time - last_time;
+  last_time = time;
 
-        particle.position.x = particle.position.x + step * particle.velocity.x;
-        particle.position.y = particle.position.y + step * particle.velocity.y;
+  if (cumulative_time < 16)
+    return;
+  cumulative_time -= 16;
+  ++loop_count;
 
-        if (particle.position.x < bounds.x[0] || particle.position.x > bounds.x[1]) {
-          particle.velocity.x = -particle.velocity.x;
+  let meshes = [];
+  let step = speed * 16 / 1000 * (1.0 / steps);
+  let removed = [];
+
+  particles = particles.filter(function(particle) {
+    let last = null;
+    for (let i = 0; i < steps; ++i) {
+      let d_ax = 0;
+      let d_ay = 0;
+
+      sinks.forEach(function(sink) {
+        let dx = sink.position.x - particle.position.x;
+        let dy = sink.position.y - particle.position.y;
+        let d2 = Math.pow(dx, 2) + Math.pow(dy, 2);
+        let d = Math.sqrt(d2);
+
+        let a = gravitation * sink.mass / d2;
+        d_ax += a * dx / d;
+        d_ay += a * dy / d;
+      });
+
+      let d_vx = step * d_ax;
+      let d_vy = step * d_ay;
+
+      particle.velocity.x = (1.0 - (1.0 - friction) / steps) * (particle.velocity.x + d_vx);
+      particle.velocity.y = (1.0 - (1.0 - friction) / steps) * (particle.velocity.y + d_vy);
+
+      particle.position.x = particle.position.x + step * particle.velocity.x;
+      particle.position.y = particle.position.y + step * particle.velocity.y;
+
+      if (particle.position.x < bounds.x[0] || particle.position.x > bounds.x[1]) {
+        particle.velocity.x = -particle.velocity.x;
+      }
+      if (particle.position.y < bounds.y[0] || particle.position.y > bounds.y[1]) {
+        particle.velocity.y = -particle.velocity.y;
+      }
+
+      let collided = checkCollision(particle.position.x, particle.position.y);
+      if (collided) {
+        if (collided.wormholes) {
+          let output = collided.wormholes[0];
+          let vx = particle.velocity.x;
+          let vy = particle.velocity.y;
+          let v = Math.sqrt(vx * vx + vy * vy);
+          particle.position.x = output.position.x + output.radius * vx / v;
+          particle.position.y = output.position.y + output.radius * vy / v;
         }
-        if (particle.position.y < bounds.y[0] || particle.position.y > bounds.y[1]) {
-          particle.velocity.y = -particle.velocity.y;
-        }
+        else {
+          collided.play();
+          if (collided.mat === particle.mat)
+            collided.shrink();
+          else
+            collided.grow();
 
-        let collided = checkCollision(particle.position.x, particle.position.y);
-        if (collided) {
-          if (collided.wormholes) {
-            let output = collided.wormholes[0];
-            let vx = particle.velocity.x;
-            let vy = particle.velocity.y;
-            let v = Math.sqrt(vx * vx + vy * vy);
-            particle.position.x = output.position.x + output.radius * vx / v;
-            particle.position.y = output.position.y + output.radius * vy / v;
-          } else {
-            collided.play();
-            if (collided.mat === particle.mat) collided.shrink();else collided.grow();
+          if (collided.radius < 1)
+            removed.push(collided);
 
-            if (collided.radius < 1) removed.push(collided);
-
-            return false;
-          }
-        }
-
-        if (!last || Math.abs(particle.position.x - last.position.x) > particle_radius / 2 || Math.abs(particle.position.y - last.position.y) > particle_radius / 2) {
-          let mesh = particle.getMesh();
-          meshes.push(mesh);
-          last = mesh;
+          return false;
         }
       }
-      return true;
-    });
 
-    meshes.forEach(function (mesh) {
-      scene.add(mesh);
-    });
-
-    let ids = {};
-    removed.forEach(function (mesh) {
-      ids[mesh.id] = true;
-      scene.remove(mesh);
-    });
-    sinks = sinks.filter(function (sink) {
-      return !ids[sink.id];
-    });
-
-    // render new content into accumulator buffer
-    renderer.render(scene, camera, framebuffer, false);
-
-    // render accumulator to screen with blurring
-    renderer.render(stage, camera);
-
-    // render screen to new back-buffer
-    renderer.render(stage, camera, framebuffer2, true);
-
-    if (start_position) {
-      switch (placing) {
-        case objects.PARTICLE:
-        case objects.WORMHOLE:
-          line.visible = true;
-          lineGeometry.vertices[0].x = start_position.x;
-          lineGeometry.vertices[0].y = start_position.y;
-          lineGeometry.vertices[1].x = mouse_position.x;
-          lineGeometry.vertices[1].y = mouse_position.y;
-
-          lineGeometry.computeLineDistances();
-          lineGeometry.lineDistancesNeedUpdate = true;
-
-          lineGeometry.verticesNeedUpdate = true;
-          break;
-        case objects.SINK:
-          placer.position.x = start_position.x;
-          placer.position.y = start_position.y;
-          let dx = Math.abs(mouse_position.x - start_position.x);
-          let dy = Math.abs(mouse_position.y - start_position.y);
-          let dist = bound(Math.sqrt(dx * dx + dy * dy), min_sink_radius, max_sink_radius);
-
-          if (Math.abs(dist - placer.radius) > 5) {
-            overlay.remove(placer);
-            placer = drawZone(start_position.x, start_position.y, dist);
-            overlay.add(placer);
-          } else {
-            placer.visible = true;
-            placer.scale.x = dist / placer.radius;
-            placer.scale.y = dist / placer.radius;
-          }
-          break;
+      if (!last || Math.abs(particle.position.x - last.position.x) > particle_radius / 2 || Math.abs(particle.position.y - last.position.y) > particle_radius / 2) {
+        let mesh = particle.getMesh();
+        meshes.push(mesh);
+        last = mesh;
       }
-    } else {
-      line.visible = false;
-      placer.visible = false;
     }
+    return true;
+  });
 
-    // render overlay to screen
-    renderer.render(overlay, camera);
+  meshes.forEach(function(mesh) {
+    scene.add(mesh);
+  });
 
-    // swap buffers
-    let a = framebuffer2;
-    framebuffer2 = framebuffer;
-    framebuffer = a;
+  let ids = {};
+  removed.forEach(function(mesh) {
+    ids[mesh.id] = true;
+    scene.remove(mesh);
+  });
+  sinks = sinks.filter(function(sink) {
+    return !ids[sink.id];
+  });
 
-    uniforms.tDiffuse.value = framebuffer;
+  // render new content into accumulator buffer
+  renderer.render(scene, camera, framebuffer, false);
 
-    meshes.forEach(function (mesh) {
-      scene.remove(mesh);
-    });
+  // render accumulator to screen with blurring
+  renderer.render(stage, camera);
+
+  // render screen to new back-buffer
+  renderer.render(stage, camera, framebuffer2, true);
+
+  if (start_position) {
+    switch (placing) {
+      case objects.PARTICLE:
+      case objects.WORMHOLE:
+        line.visible = true;
+        lineGeometry.vertices[0].x = start_position.x;
+        lineGeometry.vertices[0].y = start_position.y;
+        lineGeometry.vertices[1].x = mouse_position.x;
+        lineGeometry.vertices[1].y = mouse_position.y;
+
+        lineGeometry.computeLineDistances();
+        lineGeometry.lineDistancesNeedUpdate = true;
+
+        lineGeometry.verticesNeedUpdate = true;
+        break;
+      case objects.SINK:
+        placer.position.x = start_position.x;
+        placer.position.y = start_position.y;
+        let dx = Math.abs(mouse_position.x - start_position.x);
+        let dy = Math.abs(mouse_position.y - start_position.y);
+        let dist = bound(Math.sqrt(dx * dx + dy * dy), min_sink_radius, max_sink_radius);
+
+        if (Math.abs(dist - placer.radius) > 5) {
+          overlay.remove(placer);
+          placer = drawZone(start_position.x, start_position.y, dist);
+          overlay.add(placer);
+        }
+        else {
+          placer.visible = true;
+          placer.scale.x = dist / placer.radius;
+          placer.scale.y = dist / placer.radius;
+        }
+        break;
+    }
   }
-  render();
+  else {
+    line.visible = false;
+    placer.visible = false;
+  }
+
+  // render overlay to screen
+  renderer.render(overlay, camera);
+
+  // swap buffers
+  let a = framebuffer2;
+  framebuffer2 = framebuffer;
+  framebuffer = a;
+
+  uniforms.tDiffuse.value = framebuffer;
+
+  meshes.forEach(function(mesh) {
+    scene.remove(mesh);
+  });
+}
+render();
+
 }
 
 init();
@@ -558,11 +579,8 @@ function pitch(key, interval) {
 
 function octave(key, val) {
   if (Array.isArray(key)) {
-    return key.map(function (k) {
-      return octave(k, val);
-    }).reduce(function (accum, next) {
-      accum.push(next);return accum;
-    }, []);
+    return key.map(function(k) { return octave(k, val); })
+              .reduce(function(accum, next) { accum.push(next); return accum; }, []);
   }
   return key * Math.pow(2, val);
 }
@@ -618,19 +636,19 @@ function envelope(adsr, duration) {
   let stop = 0;
 
   return {
-    start: function (time) {
+    start: function(time) {
       start = time;
       env.gain.value = 0.0;
       let dur = duration || Math.abs(stop - start) || 0.1;
       env.gain.setValueCurveAtTime(buf, start, dur);
     },
-    stop: function (time) {
+    stop: function(time) {
       stop = time;
       env.gain.value = 0.0;
       let dur = duration || Math.abs(stop - start);
       //env.gain.setValueCurveAtTime(buf, start, dur);
     },
-    connect: function (node) {
+    connect: function(node) {
       env.connect(node);
     },
     node: env
@@ -687,27 +705,28 @@ function pluck(note) {
   s5.connect(g3);
   s6.connect(g3);
 
-  let filter_envelope = create_envelope([0.1, 2, 0, 4], 1);
+  let filter_envelope = create_envelope([0.1,2,0,4], 1);
   for (let idx = 0; idx < filter_envelope.length; ++idx) {
     filter_envelope[idx] *= note;
     filter_envelope[idx] += 30;
   }
 
-  let filter_envelope2 = create_envelope([0, 1, 2, 0, 4], 2);
+  let filter_envelope2 = create_envelope([0,1,2,0,4], 2);
   for (let idx = 0; idx < filter_envelope2.length; ++idx) {
     filter_envelope2[idx] *= octave(note, -1) * 0.5;
     filter_envelope2[idx] += 30;
   }
 
-  let filter_envelope3 = create_envelope([0.1, 3, 6, 4], 1);
-  for (let idx = 0; idx < filter_envelope3.length; ++idx) filter_envelope3[idx] *= note;
+  let filter_envelope3 = create_envelope([0.1,3,6,4], 1);
+  for (let idx = 0; idx < filter_envelope3.length; ++idx)
+    filter_envelope3[idx] *= note;
 
   let f1 = filter(note, 3, 'lowpass');
   let f2 = filter(note, 10, 'lowpass');
   let f3 = filter(note, 0.1, 'highpass');
 
-  let env1 = envelope([1, 2, 0, 4], 0.3);
-  let env2 = envelope([1, 2, 2, 5], 0.1);
+  let env1 = envelope([1,2,0,4], 0.3);
+  let env2 = envelope([1,2,2,5], 0.1);
 
   g1.connect(f1);
   g2.connect(f2);
@@ -727,9 +746,9 @@ function pluck(note) {
   let stop = 0;
 
   return {
-    start: function (time) {
+    start: function(time) {
       start = time;
-      sources.forEach(function (s) {
+      sources.forEach(function(s) {
         s.start(time);
       });
       let delta = Math.abs(stop - start);
@@ -737,9 +756,9 @@ function pluck(note) {
       f2.frequency.setValueCurveAtTime(filter_envelope2, start, delta);
       f3.frequency.setValueCurveAtTime(filter_envelope3, start, delta);
     },
-    stop: function (time) {
+    stop: function(time) {
       stop = time;
-      sources.forEach(function (s) {
+      sources.forEach(function(s) {
         s.stop(time);
       });
       let delta = Math.abs(stop - start);
@@ -749,7 +768,7 @@ function pluck(note) {
       f3.frequency.setValueCurveAtTime(filter_envelope3, start, delta);
       */
     },
-    connect: function (node) {
+    connect: function(node) {
       mg.connect(node);
     }
   };
@@ -819,7 +838,7 @@ function marimba(note) {
   g3.connect(f2);
   g4.connect(f3);
 
-  let env = envelope([0, 1, 1, 20]);
+  let env = envelope([0,1,1,20]);
   f1.connect(env.node);
   f2.connect(env.node);
   f3.connect(env.node);
@@ -827,17 +846,17 @@ function marimba(note) {
   let sources = [s1, s2, s3, s4, env];
 
   return {
-    start: function (time) {
-      sources.forEach(function (s) {
+    start: function(time) {
+      sources.forEach(function(s) {
         s.start(time);
       });
     },
-    stop: function (time) {
-      sources.forEach(function (s) {
+    stop: function(time) {
+      sources.forEach(function(s) {
         s.stop(time);
       });
     },
-    connect: function (node) {
+    connect: function(node) {
       env.connect(node);
     }
   };
@@ -847,10 +866,9 @@ let create_sound = pluck;
 
 function play(note) {
   if (Array.isArray(note)) {
-    return note.map(play).reduce(function (accum, next) {
-      accum.push(next);return accum;
-    }, []);
-  } else {
+    return note.map(play).reduce(function(accum, next) { accum.push(next); return accum; }, []);
+  }
+  else {
     return create_sound(note);
   }
 }
@@ -886,57 +904,48 @@ function duration(note, beats) {
 }
 
 function minor(key) {
-  return [0, 2, 3, 5, 7, 9, 11].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 2, 3, 5, 7, 9, 11]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function major(key) {
-  return [0, 2, 4, 5, 7, 9, 11].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 2, 4, 5, 7, 9, 11]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function dim(key) {
-  return [0, 3, 6, 9, 12].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 3, 6, 9, 12]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function aug(key) {
-  return [0, 4, 8, 12].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 4, 8, 12]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function heptatonic_blues(key) {
-  return [0, 2, 3, 5, 6, 9, 10].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 2, 3, 5, 6, 9, 10]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function melodic_minor_asc(key) {
-  return [0, 2, 3, 5, 7, 9, 11].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 2, 3, 5, 7, 9, 11]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function melodic_minor_desc(key) {
-  return [0, -2, -4, -5, -7, -9, -10].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, -2, -4, -5, -7, -9, -10]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function pentatonic_major(key) {
-  return [0, 2, 4, 7, 9].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 2, 4, 7, 9]
+    .map(function(step) { return pitch(key, step); });
 }
 
 function pentatonic_minor(key) {
-  return [0, 3, 5, 7, 11].map(function (step) {
-    return pitch(key, step);
-  });
+  return [0, 3, 5, 7, 11]
+    .map(function(step) { return pitch(key, step) });
 }
 
 function randomNote() {
@@ -960,7 +969,7 @@ function octave_range(scale, below, above) {
 }
 
 function arpeggio(scale) {
-  return scale.filter(function (note, idx) {
+  return scale.filter(function(note, idx) {
     let offset = idx % 7;
     return [1, 3, 5].indexOf(offset + 1) !== -1;
   });
@@ -990,16 +999,17 @@ function createScore() {
 }
 
 // http://stackoverflow.com/questions/22525934/connecting-convolvernode-to-an-oscillatornode-with-the-web-audio-the-simple-way
-function impulseResponse(duration, decay, reverse) {
+function impulseResponse( duration, decay, reverse ) {
   let sampleRate = context.sampleRate;
   let length = sampleRate * duration;
   let impulse = context.createBuffer(2, length, sampleRate);
   let impulseL = impulse.getChannelData(0);
   let impulseR = impulse.getChannelData(1);
 
-  if (!decay) decay = 2.0;
+  if (!decay)
+    decay = 2.0;
 
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < length; i++){
     let n = reverse ? length - i : i;
     impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
     impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
@@ -1028,7 +1038,7 @@ function createPinkNoise() {
   let b0, b1, b2, b3, b4, b5, b6;
   b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0.0;
   let node = context.createScriptProcessor(bufferSize, 1, 1);
-  node.onaudioprocess = function (e) {
+  node.onaudioprocess = function(e) {
     let output = e.outputBuffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
       let white = Math.random() * 2 - 1;
@@ -1042,18 +1052,18 @@ function createPinkNoise() {
       output[i] *= 0.11; // (roughly) compensate for gain
       b6 = white * 0.115926;
     }
-  };
+  }
   return node;
 }
 
 function createBrownNoise() {
   let lastOut = 0.0;
   let node = context.createScriptProcessor(bufferSize, 1, 1);
-  node.onaudioprocess = function (e) {
+  node.onaudioprocess = function(e) {
     let output = e.outputBuffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
       let white = Math.random() * 2 - 1;
-      output[i] = (lastOut + 0.02 * white) / 1.02;
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
       lastOut = output[i];
       output[i] *= 3.5; // (roughly) compensate for gain
     }
@@ -1061,17 +1071,18 @@ function createBrownNoise() {
   return node;
 };
 
+
 function loadSound(url, cb) {
   let request = new XMLHttpRequest();
   request.open('GET', url, true);
   request.responseType = 'arraybuffer';
 
   // Decode asynchronously
-  request.onload = function () {
-    context.decodeAudioData(request.response, function (buffer) {
+  request.onload = function() {
+    context.decodeAudioData(request.response, function(buffer) {
       cb(null, buffer);
     }, cb);
-  };
+  }
   request.send();
 }
 
@@ -1103,9 +1114,7 @@ function get_resources(prefix) {
   let names = ['a', 'as', 'h', 'c', 'cs', 'd', 'ds', 'e', 'f', 'fs', 'g', 'gs'];
   let results = [];
   for (let i = 1; i <= 5; ++i) {
-    results = results.concat(names.map(function (note) {
-      return { note: note + i, uri: prefix + note + i + '.wav' };
-    }));
+    results = results.concat(names.map(function(note) { return {note: note + i, uri: prefix + note + i + '.wav'}; } ));
   }
   return results;
 }
@@ -1146,10 +1155,11 @@ function initAudioGraph() {
 let graph = initAudioGraph();
 
 function perform(score, repeat) {
-  score.forEach(function (chord, idx) {
-    if (!Array.isArray(chord)) chord = [chord];
+  score.forEach(function(chord, idx) {
+    if (!Array.isArray(chord))
+      chord = [chord];
 
-    chord.map(function (c) {
+    chord.map(function(c) {
       let start = context.currentTime + idx * spb;
       let stop = context.currentTime + spb * idx + spb;
 
@@ -1160,7 +1170,7 @@ function perform(score, repeat) {
   });
 
   if (repeat) {
-    setTimeout(function () {
+    setTimeout(function() {
       score = play(createScore());
       perform(score);
     }, score.length / bpm * 60 * 1000);
@@ -1177,8 +1187,7 @@ for (let idx = 0; idx < 3; ++idx) {
   let vx = Math.random() * 10;
   let vy = Math.random() * 10;
 
-  setInterval(function () {
-    particle(sx, sy, vx, vy);
+  setInterval(function() {
+    particle(sx, sy, vx, vy)
   }, 1000);
 }
-

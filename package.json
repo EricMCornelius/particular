@@ -20,6 +20,8 @@
     "node": "0.10.*"
   },
   "dependencies": {
+    "babel-core": "^6.0.14",
+    "babel-preset-stage-0": "^6.0.14",
     "config": "^1.2.2",
     "koa": "*",
     "koa-static": "^1.4.7",
